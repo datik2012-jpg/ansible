@@ -1,0 +1,236 @@
+After Installation of Ansible it creates default config file at: /etc/ansible/ansible.cfg
+
+Ansible’s main configuration file. It controls how Ansible behaves—things like inventory location, SSH settings, privilege escalation, logging, plugin paths, and more. It’s basically Ansible’s “settings panel.”
+
+
+ansible.cfg is a plain-text configuration file that Ansible reads every time it runs. It lets you customize Ansible’s behavior without changing your playbooks.
+
+Ansible looks for this file in the following order (first match wins):
+
+ANSIBLE_CONFIG environment variable
+
+ansible.cfg in the current directory
+
+~/.ansible.cfg in the user’s home directory
+
+/etc/ansible/ansible.cfg (global default)
+
+
+What does ansible.cfg contain?
+Below are the most common sections you’ll find inside the file:
+
+[defaults] — general settings
+
+inventory file path
+
+roles path
+
+retry files
+
+fact caching
+
+timeout settings
+
+[privilege_escalation] — sudo/become settings
+
+become = yes/no
+
+become_method = sudo/su/pbrun/etc
+
+become_user = root
+
+[ssh_connection] — SSH behavior
+
+pipelining
+
+control master
+
+SSH arguments
+
+[inventory] — inventory plugin settings
+
+[paramiko_connection] — paramiko SSH settings
+
+[colors] — CLI output colors
+
+Example: ansible.cfg
+
+[defaults]
+inventory = ./inventory
+remote_user = ubuntu
+host_key_checking = False
+retry_files_enabled = False
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+
+[ssh_connection]
+pipelining = True
+
+
+What the image means
+It’s illustrating Ansible configuration hierarchy and fact gathering behavior.
+
+1. Configuration file locations
+Ansible looks for ansible.cfg in this order:
+
+Environment variable ANSIBLE_CONFIG
+
+ansible.cfg in the current directory
+
+~/.ansible.cfg in your home directory
+
+/etc/ansible/ansible.cfg — the global default
+
+So if you don’t have .ansible.cfg in your project or home folder, Ansible will use /etc/ansible/ansible.cfg.
+
+That’s why your image shows only /etc/ansible/ansible.cfg — it’s the fallback configuration.
+
+Gathering = implicit vs explicit
+gathering = implicit (in /etc/ansible/ansible.cfg)
+→ Ansible automatically gathers facts (system info) before running tasks.
+
+ANSIBLE_GATHERING=explicit (environment variable)
+→ You must explicitly call fact gathering using the setup module.
+
+Environment variables override settings in ansible.cfg.
+So if you set ANSIBLE_GATHERING=explicit, it will take precedence over the file’s gathering = implicit.
+
+3. Playbook directories
+The folders like /opt/web-playbooks, /opt/db-playbooks, etc., represent different project directories.
+Each can have its own ansible.cfg file if you want project-specific settings.
+
+✅ Summary
+You don’t need .ansible.cfg unless you want custom settings per project.
+
+/etc/ansible/ansible.cfg is the default global config.
+
+Environment variables (like ANSIBLE_GATHERING) override file settings.
+
+Perfect — that image shows two Ansible CLI commands used to inspect configuration settings.
+
+ansible-config list
+Lists all available configuration options in Ansible.
+
+Shows every setting, its current value, and where it’s defined (default, environment variable, or config file).
+
+Useful for auditing or troubleshooting configuration behavior.
+
+Example:
+
+bash
+ansible-config list
+You’ll see output like:
+
+Code
+DEFAULT_TIMEOUT = 10
+INVENTORY = /etc/ansible/hosts
+GATHERING = implicit
+🧩 ansible-config view
+Displays the active configuration file Ansible is currently using.
+
+Helps confirm which ansible.cfg file is being read (since Ansible checks multiple locations).
+
+Example:
+
+bash
+ansible-config view
+Output might show:
+
+Code
+# /etc/ansible/ansible.cfg
+[defaults]
+inventory = /etc/ansible/hosts
+
+Major command is : 
+ansible-config dump - shows current setting and from where it picked up
+ansible-config dump | grep GATHERING
+
+This confirms:
+
+The active value is explicit
+
+It’s coming from the environment variable (env: ANSIBLE_GATHERING)
+
+It overrides whatever is set in /etc/ansible/ansible.cfg
+This command displays all current configuration values and filters for the word “GATHERING.”
+
+What “gathering” means
+When Ansible runs a playbook, it can automatically collect details about each host — things like:
+
+OS type and version
+
+IP addresses
+
+CPU and memory info
+
+Network interfaces
+
+Disk space
+
+These details are called facts, and Ansible stores them in variables you can use later in your playbooks.
+
+⚙️ Two gathering modes
+Mode	Description	Example use
+implicit	Ansible automatically gathers facts at the start of every play.	Good for general playbooks that need host info.
+explicit	You must manually call the setup module to gather facts.	Useful when you want faster runs or control over when facts are collected.
+
+
+So if your config says gathering = implicit, Ansible collects facts automatically.
+If you set ANSIBLE_GATHERING=explicit, it waits until you tell it to.
+
+🧠 Why it matters
+Fact gathering can slow down large playbooks.
+If you don’t need host details, switching to explicit mode saves time.
+If you do need them (like checking OS or IP), keep implicit mode.
+
+
+- hosts: all
+  gather_facts: no  # disables automatic gathering
+  tasks:
+    - name: Gather facts manually
+      ansible.builtin.setup:
+
+
+////////////////////////////////YAMLS with ANSIBLE ////////////////
+
+
+Key‑Value Pair
+This is the simplest form — one key and one value per line:
+
+yaml
+Fruit: Apple
+Vegetable: Carrot
+Liquid: Water
+Meat: Chicken
+It’s like a dictionary with single entries. Perfect for straightforward settings such as timeout: 30 or debug: true.
+
+🟡 Array / List
+Lists are used when you have multiple items under one key:
+
+yaml
+Fruits:
+  - Orange
+  - Apple
+  - Banana
+Vegetables:
+  - Carrot
+  - Cauliflower
+  - Tomato
+Each dash (-) marks a new element. In Ansible, you’ll see lists for tasks, hosts, or roles.
+
+🟣 Dictionary / Map
+This structure nests key‑value pairs inside another key:
+
+yaml
+Banana:
+  Calories: 105
+  Fat: 0.4 g
+  Carbs: 27 g
+Grapes:
+  Calories: 62
+  Fat: 0.3 g
+  Carbs: 16 g
+

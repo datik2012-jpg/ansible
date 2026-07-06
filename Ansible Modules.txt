@@ -1,0 +1,502 @@
+Ansible lineinfile approach
+yaml
+- name: Add DNS server to resolv.conf
+  hosts: localhost
+  tasks:
+    - lineinfile:
+        path: /etc/resolv.conf
+        line: 'nameserver 10.1.250.10'
+Behavior: Searches for the line first; adds it only if missing.
+
+Result: File stays clean — no duplicates.
+
+Advantage: Idempotent and declarative (Ansible ensures the desired state).
+
+Extra power: You can use regex to replace or match patterns.
+
+
+
+Basic example
+yaml
+- name: Ensure nameserver entry exists
+  hosts: localhost
+  become: yes
+  tasks:
+    - lineinfile:
+        path: /etc/resolv.conf
+        line: 'nameserver 10.1.250.10'
+        state: present
+🔍 What it does
+Searches /etc/resolv.conf for the line nameserver 10.1.250.10.
+
+If it’s missing, it adds it.
+
+If it’s already there, it does nothing.
+
+This makes the task idempotent — safe to run multiple times.
+
+🧩 Search and replace using regex
+If you want to replace a line that matches a pattern:
+
+yaml
+- name: Replace existing nameserver line
+  lineinfile:
+    path: /etc/resolv.conf
+    regexp: '^nameserver'
+    line: 'nameserver 10.1.250.10'
+✔ Finds any line starting with nameserver  
+✔ Replaces it with your new line
+
+🧩 Add after or before a specific line
+yaml
+- name: Add nameserver after a specific line
+  lineinfile:
+    path: /etc/resolv.conf
+    line: 'nameserver 10.1.250.10'
+    insertafter: '^nameserver 10.1.250.2'
+Or before:
+
+yaml
+insertafter: '^nameserver 10.1.250.1'
+insertbefore: '^search'
+🧩 Add multiple lines
+yaml
+- name: Add multiple nameservers
+  lineinfile:
+    path: /etc/resolv.conf
+    line: "{{ item }}"
+    state: present
+  loop:
+    - 'nameserver 10.1.250.10'
+    - 'nameserver 10.1.250.11'
+
+///////////////////////ANSIBLE PLUGINS /////////
+
+
+Dynamic Inventory Plugin
+
+Used to generate inventory dynamically instead of using a static file.
+
+
+xample:
+AWS EC2 dynamic inventory plugin (aws_ec2):
+
+yaml
+plugin: aws_ec2
+regions:
+  - us-east-1
+keyed_groups:
+  - key: tags.Name
+    prefix: tag
+✅ Automatically pulls hosts from AWS based on tags or regions.
+✅ Other examples: azure_rm, gcp_compute, openstack, vmware_vm_inventory.
+
+
+Module Plugin
+Modules are the units of work — they perform actions on remote hosts.
+
+🔹 Example:
+yum module:
+
+yaml
+- name: Install Apache
+  yum:
+    name: httpd
+    state: present
+✅ Executes commands remotely.
+✅ Other examples: copy, file, service, user, shell, command.
+
+
+Action Plugin
+Action plugins extend or modify how modules run — they execute on the control node before sending tasks to remote hosts.
+
+🔹 Example:
+normal action plugin (default behavior):
+
+yaml
+- name: Run a custom action
+  action: my_custom_action
+Or a custom plugin that checks parameters before running a module:
+
+python
+# custom_action.py
+from ansible.plugins.action import ActionBase
+
+class ActionModule(ActionBase):
+    def run(self, tmp=None, task_vars=None):
+        self._display.display("Running custom validation before module execution")
+        result = super(ActionModule, self).run(tmp, task_vars)
+        return result
+✅ Used for pre‑processing, validation, or combining multiple modules.
+✅ Examples: template, copy, and assemble use internal action plugins.
+
+
+
+
+ookup Plugins
+Used to fetch data from external sources (files, environment variables, URLs, etc.) during playbook execution.
+
+Example:
+yaml
+- name: Read a local file
+  debug:
+    msg: "{{ lookup('file', '/etc/hosts') }}"
+✅ Reads the file on the control node.
+Other examples: env, pipe, url, ini, password.
+
+🎛️ Filter Plugins
+Used to transform or manipulate data inside Jinja2 expressions — like formatting, sorting, or converting.
+
+Example:
+yaml
+- name: Show uppercase fruit names
+  vars:
+    fruits: ['apple', 'banana', 'grapes']
+  debug:
+    msg: "{{ fruits | map('upper') | list }}"
+✅ Converts all fruit names to uppercase.
+Other examples: default, join, unique, dict2items.
+
+🔌 Connection Plugins
+Define how Ansible connects to remote systems — SSH, local, Docker, etc.
+
+Example:
+yaml
+- name: Run locally
+  hosts: localhost
+  connection: local
+✅ Runs tasks on the control node instead of over SSH.
+Other examples: ssh, paramiko, docker, winrm.
+
+🗂️ Inventory Plugins
+Used to build inventory dynamically from external sources (clouds, databases, APIs).
+
+Example:
+yaml
+plugin: aws_ec2
+regions:
+  - us-east-1
+keyed_groups:
+  - key: tags.Name
+    prefix: tag
+✅ Automatically discovers EC2 instances and groups them.
+Other examples: azure_rm, gcp_compute, openstack, yaml.
+
+📞 Callback Plugins
+Control how Ansible displays output or sends notifications (to Slack, JSON, etc.).
+
+Example:
+Enable the json callback:
+
+bash
+ANSIBLE_STDOUT_CALLBACK=json
+✅ Makes Ansible output structured JSON instead of plain text.
+Other examples: minimal, yaml, profile_tasks, slack, mail.
+
+🧠 Summary Table
+Plugin Type	Purpose	Example
+Lookup	Fetch external data	lookup('file', '/etc/hosts')
+Filter	Transform data	`{{ list	join(',') }}`
+Connection	Define how to connect	connection: local
+Inventory	Build dynamic inventory	plugin: aws_ec2
+Callback	Customize output or notifications	ANSIBLE_STDOUT_CALLBACK=yaml
+
+
+//////////////////////////LAB - Modules /////////////////
+
+
+In this lab exercise you will use below hosts. Please note down some details about these hosts as given below :
+
+
+student-node :- This host will act as an Ansible master node where you will create playbooks, inventory, roles etc and you will be running your playbooks from this host itself.
+
+
+node01 :- This host will act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+node02 :- This host will also act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+Note: Please type exit or logout on the terminal or press CTRL + d to log out from a specific node.
+
+
+Which of the following Ansible modules support free_form parameter?
+
+Example: Example:
+
+yaml
+command: ls -l /etc
+Here, ls -l /etc is a free‑form parameter.
+
+There is no cmd: or args: — the module expects a single free‑form string.
+
+Modules that use free‑form parameters
+1️⃣ command module
+yaml
+- command: echo "Hello dani"
+2️⃣ shell module
+yaml
+- shell: cat /etc/resolv.conf | grep nameserver
+3️⃣ raw module
+yaml
+- raw: uptime
+4️⃣ git module (free‑form URL)
+yaml
+- git: https://github.com/example/repo.git
+5️⃣ service module (older syntax)
+yaml
+- service: httpd state=started
+6️⃣ mount module (older syntax)
+yaml
+- mount: /mnt src=/dev/sdb1 fstype=ext4 state=mounted
+
+
+
+Idempotency means you can run the same playbook many times, and the system ends up in the same state — without unwanted changes or duplicates.
+
+
+
+Which of the following commands we can use to see the information about Ansible modules from command line?
+
+>ansible-doc 
+
+
+Which Ansible module is used in the following playbook?
+
+
+---
+- hosts: localhost
+  become: yes
+  become_user: root
+  tasks:
+    - name: create user
+      user:
+        name: admin
+
+Answer: Model user been used
+
+
+
+Update the playbook named playbook.yaml under /home/bob/playbooks directory with a task named Execute a script to run a script. The script is located at /tmp/install_script.sh on student-node.
+
+Use the script module.
+
+
+
+Note: There is already an inventory file /home/bob/playbooks/inventory present on student-node system.
+
+
+inventory file:
+
+
+[bob@student-node ~]$ cat /home/bob/playbooks/inventory
+node01 ansible_host=node01 ansible_ssh_pass=caleston123
+node02 ansible_host=node02 ansible_ssh_pass=caleston123
+[web_nodes]
+node01
+node02
+
+added to the yaml:
+
+[bob@student-node playbooks]$ cat  playbook.yaml 
+---
+- name: 'hosts'
+  hosts: all
+  become: yes
+  tasks:
+    - name: Execute a script
+      script: /tmp/install_script.sh
+
+run it:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [hosts] **********************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Execute a script] ***********************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+
+Update the playbook /home/bob/playbooks/playbook.yaml to add a new task to start httpd service on all web nodes defined in /home/bob/playbooks/inventory file.
+
+
+Use the service module.
+
+
+
+yaml been updated:
+
+
+[bob@student-node playbooks]$ cat playbook.yaml 
+---
+- name: 'hosts'
+  hosts: web_nodes
+  become: yes
+
+  tasks:
+    - name: Execute a script
+      script: '/tmp/install_script.sh'
+
+    - name: Start httpd
+      service:
+        name: httpd
+        state: started
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [hosts] **********************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Execute a script] ***********************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+TASK [Start httpd] ****************************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+
+Update the playbook /home/bob/playbooks/playbook.yaml to append the /var/www/html/index.html file on all web nodes. The line needs to be added is Welcome to ansible-beginning course, create the index.html file if doesn't exist.
+
+
+
+Use the lineinfile module.
+
+yaml updated:
+
+[bob@student-node playbooks]$ cat playbook.yaml 
+---
+- name: 'hosts'
+  hosts: all
+  become: yes
+  tasks:
+    - name: 'Execute a script'
+      script: '/tmp/install_script.sh'    
+    - name: 'Start httpd service'
+      service:
+        name: 'httpd'
+        state: 'started'
+    - name: 'Welcome'
+      lineinfile:
+        path: /var/www/html/index.html
+        line: "Welcome to ansible-beginning course"
+        create: yes
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [hosts] **********************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Execute a script] ***********************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+TASK [Start httpd service] ********************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Welcome] ********************************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=4    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=4    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+Update the playbook /home/bob/playbooks/playbook.yaml to add a new task to create a new user called web_user.
+
+Use the user module for this task. You can find the user details as below.
+
+Username: web_user
+uid: 1040
+group: developers
+
+created yaml:
+
+[bob@student-node playbooks]$ cat playbook.yaml 
+---
+- name: 'hosts'
+  hosts: all
+  become: yes
+  tasks:
+    - name: 'Execute a script'
+      script: '/tmp/install_script.sh'
+    - name: 'Start httpd service'
+      service:
+        name: 'httpd'
+        state: 'started'
+    - name: "Update /var/www/html/index.html"
+      lineinfile:
+        path: /var/www/html/index.html
+        line: "Welcome to ansible-beginning course"
+        create: true
+
+    - name: Add user or groups
+      user:
+        name: web_user
+        groups: developers
+        uid: 1040  
+        append: yes
+
+run it:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [hosts] **********************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Execute a script] ***********************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+TASK [Start httpd service] ********************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Update /var/www/html/index.html] ********************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Add user or groups] *********************************************************************************************************************************************************
+changed: [node01]
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=5    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=5    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   

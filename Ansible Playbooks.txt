@@ -1,0 +1,970 @@
+Excellent question, dani — the command ansible-doc -l is one of the most useful tools for exploring Ansible’s built‑in modules.
+
+Here’s what it does and how to use it effectively:
+
+🧩 Purpose
+ansible-doc shows documentation for Ansible modules and plugins directly from your terminal.
+The -l (lowercase L) option means “list all available modules.”
+
+>ansible-doc -l
+
+ansible.builtin.ping        Check connectivity between Ansible and hosts
+ansible.builtin.copy        Copy files to remote locations
+ansible.builtin.file        Manage file properties
+ansible.builtin.yum         Manage packages with yum
+ansible.builtin.service     Manage services
+...
+
+
+How to read full documentation for one module
+Once you find the module name, you can view its details:
+
+bash
+ansible-doc ansible.builtin.yum
+
+Pro tip
+You can also search for modules by keyword:
+
+bash
+ansible-doc -l | grep user
+
+Help to run the playbook:
+>ansible-playbook --help
+
+////////////////////////////verify palybook before the run /////////
+
+verify an Ansible playbook before running it
+
+ansible-playbook playbook.yml --syntax-check
+
+
+Dry run (check what would happen)
+
+ansible-playbook playbook.yml --check
+
+
+Dry run + diff (see exact changes)
+This shows what files or configs would change.
+ansible-playbook playbook.yml --check --diff
+
+
+4. Limit to one host (safe testing)
+Run the playbook on a single host first:
+
+bash
+ansible-playbook playbook.yml -l hostname
+Example:
+
+bash
+ansible-playbook playbook.yml -l web1
+
+
+5. Validate inventory before running
+bash
+ansible-inventory -i inventory --list
+
+
+Check module documentation
+Before using a module, verify its parameters:
+
+bash
+ansible-doc -l
+ansible-doc yum
+ansible-doc user
+
+
+Summary table
+Purpose	                Command
+Check syntax	        ansible-playbook --syntax-check
+Dry run	                ansible-playbook --check
+Dry run + diff	        ansible-playbook --check --diff
+Test on one host	ansible-playbook -l hostname
+Validate inventory	ansible-inventory --list
+View module docs	ansible-doc module
+
+////////////////////////////////////ANSIBLE-LINT like quality gate ///////////
+
+
+What ansible‑lint does
+It scans your playbooks and roles for:
+
+YAML structure problems
+
+Bad indentation
+
+Deprecated modules
+
+Unsafe patterns
+
+Missing state:
+
+Missing become:
+
+Unquoted variables
+
+Hard‑coded paths
+
+Incorrect loops
+
+Wrong module usage
+
+Security issues
+
+It’s more strict than ansible-playbook --syntax-check — and that’s a good thing.
+
+> ansible-lint playbook.yml
+
+Output:
+
+[ANSIBLE0002] Trailing whitespace
+[ANSIBLE0011] All tasks should be named
+[ANSIBLE0012] Commands should not change things if nothing needs doing
+
+If you don’t have it:
+
+bash
+pip install ansible-lint
+
+
+
+Use it before every run
+This is the workflow used in large environments:
+
+Write playbook
+
+Run ansible-lint
+
+Fix issues
+
+Run ansible-playbook --syntax-check
+
+Run ansible-playbook --check
+
+Run for real
+
+This prevents mistakes on 1000 servers.
+
+////////////////////////////////////////////LAB Ansible Playbooks ///////////
+
+
+In this lab exercise you will use below hosts. Please note down some details about these hosts as given below :
+
+
+student-node :- This host will act as an Ansible master node where you will create playbooks, inventory, roles etc and you will be running your playbooks from this host itself.
+
+
+node01 :- This host will act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+node02 :- This host will also act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+Note: Please type exit or logout on the terminal or press CTRL + d to log out from a specific node.
+
+
+
+
+You've been given feedback from ansible-lint about potential issues in your hypothetical webserver_setup.yml playbook. The feedback mentions issues with indentation, deprecated modules, and missing name attributes.
+
+
+Which of the following is NOT a recommended action based on the feedback?
+
+
+A. Correcting the indentation in the playbook.
+B. Replacing deprecated modules with their newer counterparts.
+C. Ignoring the feedback and proceeding with playbook execution.
+D. Adding 'name' attributes to tasks that are missing them.
+
+Answer: C
+
+
+If ansible-lint provides no output after checking a playbook, what does it indicate?
+
+
+A. The playbook has syntax errors.
+B. The playbook is empty.
+C. The playbook adheres to best practices and has no style-related issues.
+D. ansible-lint failed to check the playbook.
+
+
+Answer: is C -  The playbook adheres to best practices and has no style-related issues.
+
+
+
+
+Update the name of the play in /home/bob/playbooks/playbook.yaml playbook to Execute a date command on localhost.
+
+updated:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yaml
+
+---
+- name: 'Execute a date command on localhost'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+
+
+Now play is fixed:
+
+[bob@student-node ~]$ ansible-playbook /home/bob/playbooks/playbook.yaml
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
+
+PLAY [Execute a date command on localhost] ****************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Execute a date command] *****************************************************************************************************************************************************
+changed: [localhost]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+
+Update the playbook /home/bob/playbooks/playbook.yaml to add a task name Task to display hosts file for the existing task.
+
+ 
+
+Added:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute a command to display hosts file on localhost'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: 'Task to display hosts file'
+      command: 'cat /etc/hosts'  
+
+run:
+
+[bob@student-node ~]$ ansible-playbook /home/bob/playbooks/playbook.yaml
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
+
+PLAY [Execute a command to display hosts file on localhost] ***********************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Task to display hosts file] *************************************************************************************************************************************************
+changed: [localhost]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+We have reset the playbook /home/bob/playbooks/playbook.yaml, now update it to add another task. The new task must execute the command cat /etc/resolv.conf and set its name to Task to display nameservers.
+
+added:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on localhost'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display nameservers'
+      command: 'cat /etc/resolv.conf'   
+
+
+
+So far, we have been running all tasks on localhost. We would now like to run these tasks on node01, this host is already defined in /home/bob/playbooks/inventory file. Update the playbook /home/bob/playbooks/playbook.yaml to run the tasks on the node01 host.
+
+see inventiry file:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/inventory
+node01 ansible_host=node01 ansible_ssh_pass=caleston123
+node02 ansible_host=node02 ansible_ssh_pass=caleston123
+[web_nodes]
+node01
+node02
+
+crurrent playbook:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on node01'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display hosts file'
+      command: 'cat /etc/hosts'
+[bob@student-node ~]$ 
+
+
+Added to the playbook:
+
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on node01'
+  hosts: node01
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display hosts file'
+      command: 'cat /etc/hosts'
+
+Need CD to the directory where playbook and inventry are located before you run ansible-playbok
+
+RUN from the correct folder:
+
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [Execute two commands on node01] *********************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+
+TASK [Execute a date command] *****************************************************************************************************************************************************
+changed: [node01]
+
+TASK [Task to display hosts file] *************************************************************************************************************************************************
+changed: [node01]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+Refer to the /home/bob/playbooks/inventory file. We would like to run the /home/bob/playbooks/playbook.yaml on all servers defined under web_nodes group.
+
+
+Note: Use the group name in playbook as defined in the inventory file.
+
+
+cat ini file:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/inventory
+node01 ansible_host=node01 ansible_ssh_pass=caleston123
+node02 ansible_host=node02 ansible_ssh_pass=caleston123
+[web_nodes]
+node01
+node02
+
+cat the yaml:
+[bob@student-node playbooks]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on web_nodes'
+  hosts: node01
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display hosts file'
+      command: 'cat /etc/hosts
+
+
+update the yaml file:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on web_nodes'
+  hosts: web_nodes
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display hosts file'
+      command: 'cat /etc/hosts'
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [Execute two commands on web_nodes] ******************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [Execute a date command] *****************************************************************************************************************************************************
+changed: [node02]
+changed: [node01]
+
+TASK [Task to display hosts file] *************************************************************************************************************************************************
+changed: [node02]
+changed: [node01]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+
+
+Update the /home/bob/playbooks/playbook.yaml to add a new play named Execute a command on node02, and a task under it to execute cat /etc/hosts command on node02 host, name the task Task to display hosts file on node02.
+
+
+Refer to the given inventory file.
+
+added to the yaml:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/playbook.yaml
+---
+- name: 'Execute two commands on node01'
+  hosts: node01
+  become: yes
+  tasks:
+    - name: 'Execute a date command'
+      command: date
+    - name: 'Task to display hosts file on node01'
+      command: 'cat /etc/hosts'
+- name: 'Execute a command on node02'
+  hosts: node02
+  become: yes
+  tasks:
+    - name: 'Task to display hosts file on node02'
+      command: 'cat /etc/hosts' 
+
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory playbook.yaml
+
+PLAY [Execute two commands on node01] *********************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+
+TASK [Execute a date command] *****************************************************************************************************************************************************
+changed: [node01]
+
+TASK [Task to display hosts file on node01] ***************************************************************************************************************************************
+changed: [node01]
+
+PLAY [Execute a command on node02] ************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node02]
+
+TASK [Task to display hosts file on node02] ***************************************************************************************************************************************
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+////////////////Ansible when conditions ///////////
+
+⭐ 1. Condition based on a variable value
+yaml
+- name: Install nginx only if enabled
+  yum:
+    name: nginx
+    state: present
+  when: nginx_enabled == true
+Use this when a boolean or flag controls a task.
+
+⭐ 2. Condition based on string comparison
+yaml
+- name: Restart service only on production
+  service:
+    name: myapp
+    state: restarted
+  when: env == "prod"
+⭐ 3. Condition based on OS family
+yaml
+- name: Install package on RedHat systems
+  yum:
+    name: httpd
+    state: present
+  when: ansible_facts.os_family == "RedHat"
+⭐ 4. Condition based on multiple conditions (AND)
+yaml
+- name: Install nginx only on prod AND RedHat
+  yum:
+    name: nginx
+    state: present
+  when:
+    - env == "prod"
+    - ansible_facts.os_family == "RedHat"
+⭐ 5. OR condition
+yaml
+- name: Run task on prod OR staging
+  debug:
+    msg: "Environment is prod or staging"
+  when: env in ["prod", "staging"]
+⭐ 6. Condition based on file existence
+yaml
+- name: Run only if config file exists
+  debug:
+    msg: "Config found"
+  when: ansible_facts['files']['/etc/myapp.conf'].exists
+⭐ 7. Condition based on command result
+yaml
+- name: Check if user exists
+  command: id dani
+  register: user_check
+  ignore_errors: yes
+
+- name: Create user if missing
+  user:
+    name: dani
+  when: user_check.rc != 0
+⭐ 8. Condition inside a loop
+yaml
+- name: Install only selected packages
+  yum:
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ packages }}"
+  when: item.enabled == true
+⭐ 9. Condition based on host group
+yaml
+- name: Run only on web servers
+  debug:
+    msg: "This is a web server"
+  when: "'web' in group_names"
+⭐ 10. Condition based on fact (RAM, CPU, etc.)
+yaml
+- name: Run only if RAM > 4GB
+  debug:
+    msg: "Enough memory"
+  when: ansible_facts.memtotal_mb > 4096
+
+////////////////////////////////LAB - Conditions ///////
+
+In this lab exercise you will use below hosts. Please note down some details about these hosts as given below :
+
+
+student-node :- This host will act as an Ansible master node where you will create playbooks, inventory, roles etc and you will be running your playbooks from this host itself.
+
+
+node01 :- This host will act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+node02 :- This host will also act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+Note: Please type exit or logout on the terminal or press CTRL + d to log out from a specific node.
+
+
+Which of the following Ansible built-in variable populates the flavour of the operating system?
+
+Answer: ansible_os_family
+
+
+Which keyword is used to define a condition in an Ansible playbook?
+
+
+Answer: when
+
+
+As per the given playbook, will Ansible install the vim package on a RedHat based machine?
+
+
+---
+- name: Install package
+  hosts: app1
+  tasks:
+    - name: Install
+      package:
+        name: vim
+        state: present
+      when: ansible_os_family != "RedHat"
+
+Answer: No
+
+There is a playbook named nginx.yaml under /home/bob/playbooks directory. It is starting nginx service on all hosts defined in /home/bob/playbooks/inventory inventory file. Use the when condition to run this task only on node02 host.
+
+
+see what nginx.yaml has:
+
+
+[bob@student-node playbooks]$ cat nginx.yaml
+---
+-  name: 'Execute a script on all web server nodes'
+   hosts: all
+   become: yes
+   tasks:
+     -  service: 'name=nginx state=started'
+
+show as well inventory:
+
+
+[bob@student-node playbooks]$ cat inventory
+node01 ansible_host=node01 ansible_ssh_pass=caleston123
+node02 ansible_host=node02 ansible_ssh_pass=caleston123
+[web_nodes]
+node01
+node02
+
+
+try:
+
+[bob@student-node playbooks]$ cat nginx.yaml
+---
+-  name: 'Execute a script on all web server nodes'
+   hosts: all
+   become: yes
+   tasks:
+     -  service: 'name=nginx state=started'
+        when: inventory_hostname == "node02"
+
+
+run:
+
+[bob@student-node playbooks]$ vim nginx.yaml 
+[bob@student-node playbooks]$ ansible-playbook -i inventory nginx.yaml 
+
+PLAY [Execute a script on all web server nodes] ***********************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+
+TASK [service] ********************************************************************************************************************************************************************
+skipping: [node01]
+changed: [node02]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=1    changed=0    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+ran only on the node02 !!! node01 been skipped!!!
+
+The playbook under /home/bob/playbooks/age.yaml , has a variable defined called age. The two tasks attempt to print if I am a child or an Adult. Use the when conditional to print if I am a child or an Adult based on whether my age is < 18 (Child) or >= 18 (Adult).
+
+
+yaml age:
+
+
+[bob@student-node playbooks]$ cat age.yaml
+---
+- name: 'Am I an Adult or a Child?'
+  hosts: localhost
+  vars:
+    age: 25
+  tasks:
+    - name: I am a Child
+      command: 'echo "I am a Child"'
+      
+    - name: I am an Adult
+      command: 'echo "I am an Adult"'
+
+
+
+added:
+
+[bob@student-node playbooks]$ cat age.yaml
+---
+- name: 'Am I an Adult or a Child?'
+  hosts: localhost
+  vars:
+    age: 25
+  tasks:
+    - name: I am a Child
+      command: 'echo "I am a Child"'
+      when: age < 18 
+    - name: I am an Adult
+      command: 'echo "I am an Adult"'
+      when: age > 18
+
+run and see Child task been skipped:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory age.yaml
+
+PLAY [Am I an Adult or a Child?] **************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [I am a Child] ***************************************************************************************************************************************************************
+skipping: [localhost]
+
+TASK [I am an Adult] **************************************************************************************************************************************************************
+changed: [localhost]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0 
+
+
+
+
+
+
+Playbook /home/bob/playbooks/nameserver.yaml attempts to add an entry in /etc/resolv.conf file to add a new nameserver.
+
+
+The first task in the playbook is using the shell module to display the existing contents of /etc/resolv.conf file and the second one is adding a new line containing the name server details into the file. However, when this playbook is run multiple times, it keeps adding new entries of same line into the resolv.conf file. To resolve this issue, update the playbook as per details mentioned below.
+
+
+Add a register directive to store the output of the first task to a variable called command_output
+
+Then add a conditional to the second task to check if the output already contains the name server (10.0.250.10). Use command_output.stdout.find(<IP>) == -1
+
+
+Note:
+a. A better way to do this would be to use the lineinfile module. This is just for practice.
+
+
+b.shell and command modules are similar in a way that they are used to execute a command on the system. However, shell executes the command inside a shell giving us access to environment variables and redirection using >>.
+
+
+try:
+
+
+[bob@student-node playbooks]$ cat nameserver.yaml 
+---
+- name: 'Add name server entry if not already entered'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Read resolv.conf
+      command: cat /etc/resolv.conf
+      register: command_output    
+
+    - name: Add nameserver entry
+      shell: 'echo "nameserver 10.0.250.10" >> /etc/resolv.con
+
+
+run:
+
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory nameserver.yaml
+
+PLAY [Add name server entry if not already entered] *******************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Read resolv.conf] ***********************************************************************************************************************************************************
+changed: [localhost]
+
+TASK [Add nameserver entry] *******************************************************************************************************************************************************
+changed: [localhost]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=3    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+another option is:
+
+[bob@student-node playbooks]$ cat nameserver.yaml 
+---
+- name: 'Add name server entry if not already entered'
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Read resolv.conf
+      command: cat /etc/resolv.conf
+      register: command_output    
+
+    - name: Add nameserver entry
+      shell: 'echo "nameserver 10.0.250.10" >> /etc/resolv.conf'
+      when: command_output.stdout.find("10.0.250.10") == -1
+        
+[bob@student-node playbooks]$ ^C
+[bob@student-node playbooks]$ ansible-playbook -i inventory nameserver.yaml
+
+PLAY [Add name server entry if not already entered] *******************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Read resolv.conf] ***********************************************************************************************************************************************************
+changed: [localhost]
+
+TASK [Add nameserver entry] *******************************************************************************************************************************************************
+skipping: [localhost]
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+
+////////////////////Ansible Loops - LAB /////////////////////
+
+In this lab exercise you will use below hosts. Please note down some details about these hosts as given below :
+
+
+student-node :- This host will act as an Ansible master node where you will create playbooks, inventory, roles etc and you will be running your playbooks from this host itself.
+
+
+node01 :- This host will act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+node02 :- This host will also act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+Password: caleston123
+
+
+Note: Please type exit or logout on the terminal or press CTRL + d to log out from a specific node.
+
+
+
+
+
+Loop can be exuted on DICTIONARY as well !
+
+mydict:
+  node01: web
+  node02: db
+
+
+- name: Loop over dictionary keys
+  debug:
+    msg: "Key: {{ item }}"
+  loop: "{{ mydict.keys() }}"
+
+
+Loop over a dictionary’s values
+yaml
+- name: Loop over dictionary values
+  debug:
+    msg: "Value: {{ item }}"
+  loop: "{{ mydict.values() }}"
+⭐ 3. Loop over key/value pairs (most useful)
+This is the pattern used in 90% of real playbooks.
+
+yaml
+- name: Loop over dictionary items
+  debug:
+    msg: "Key: {{ item.key }} → Value: {{ item.value }}"
+  loop: "{{ mydict | dict2items }}"
+
+
+
+Which type of plugin with_* directives use in Ansible?
+
+Answer:lookup
+
+Note: The Ansible lookup directive is how you pull data from outside the playbook (files, environment variables, templates, inventory, URLs, etc.) into a variable during runtime. 
+
+env — read environment variables
+yaml
+- debug:
+    msg: "{{ lookup('env', 'HOME') }}"
+3️⃣ password — generate random passwords
+yaml
+- debug:
+    msg: "{{ lookup('password', '/tmp/passfile chars=ascii_letters') }}"
+4️⃣ pipe — run a shell command on the control node
+yaml
+- debug:
+    msg: "{{ lookup('pipe', 'date') }}"
+5️⃣ template — render a Jinja2 template locally
+yaml
+- debug:
+    msg: "{{ lookup('template', 'mytemplate.j2') }}"
+6️⃣ ini — read values from INI files
+yaml
+- debug:
+    msg: "{{ lookup('ini', 'username section=auth file=/etc/app.ini') }}"
+7️⃣ url — fetch content from a URL
+yaml
+- debug:
+    msg: "{{ lookup('url', 'https://example.com') }}"
+8️⃣ dict — convert a dictionary into items
+yaml
+- debug:
+    msg: "{{ lookup('dict', mydict) }}"
+
+
+
+The playbook /home/bob/playbooks/fruits.yml currently runs an echo command to print a fruit name. Apply a loop directive (with_items) to the task to print all fruits defined under the fruits variable.
+
+
+
+added:
+
+[bob@student-node playbooks]$ cat fruits.yml 
+---
+-  name: 'Print list of fruits'
+   hosts: localhost
+   vars:
+     fruits:
+       - Apple
+       - Banana
+       - Grapes
+       - Orange
+   tasks:
+     - command: 'echo "{{ item }}"'
+       with_items: '{{ fruits }}'
+
+but it mention old syntax , better:
+
+- name: Print list of fruits
+  hosts: localhost
+  vars:
+    fruits:
+      - Apple
+      - Banana
+      - Grapes
+      - Orange
+  tasks:
+    - name: Print each fruit
+      command: echo "{{ item }}"
+      loop: "{{ fruits }}"
+
+
+both are working:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory fruits.yml 
+
+PLAY [Print list of fruits] *******************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [command] ********************************************************************************************************************************************************************
+changed: [localhost] => (item=Apple)
+changed: [localhost] => (item=Banana)
+changed: [localhost] => (item=Grapes)
+changed: [localhost] => (item=Orange)
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+We are attempting to install multiple packages using the yum module for a more realistic use case. The playbook /home/bob/playbooks/packages.yml installs only a single package. Update it to install all packages defined under packages variable.
+
+
+
+yaml file:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/packages.yml
+---
+- name: 'Install required packages'
+  hosts: localhost
+  become: yes
+  vars:
+    packages:
+      - httpd
+      - make
+      - vim
+  tasks:
+    - yum:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ packages }}"  
