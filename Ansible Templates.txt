@@ -1,0 +1,445 @@
+Ansible template example
+
+/etc/ansible/hosts
+ini
+[web_servers]
+web1 ansible_host=172.20.1.100
+web2 ansible_host=172.20.1.101
+web3 ansible_host=172.20.1.102
+⚙️ playbook.yml
+yaml
+- hosts: web_servers
+  tasks:
+    - name: Copy index.html to remote servers
+      template:
+        src: index.html.j2
+        dest: /var/www/nginx-default/index.html
+🧠 index.html.j2
+html
+<!DOCTYPE html>
+<html>
+<body>
+This is {{ inventory_hostname }} Server
+</body>
+</html>
+
+Explanation:
+
+The inventory file defines three web servers.
+
+The playbook uses the template module to copy a Jinja2 file to each server.
+
+The template dynamically inserts each host’s name using {{ inventory_hostname }}.
+
+Each server will end up with a unique HTML file showing its own hostname.
+
+
+
+
+Ansible template example
+
+/etc/resolv.conf.j2
+jinja2
+{% for name_server in name_servers %}
+nameserver      {{ name_server }}
+{% endfor %}
+⚙️ Variable definition
+yaml
+name_servers:
+  - 10.1.1.2
+  - 10.1.1.3
+  - 8.8.8.8
+📄 Rendered output (/etc/resolv.conf)
+bash
+nameserver 10.1.1.2
+nameserver 10.1.1.3
+nameserver 8.8.8.8
+💡 Explanation:
+
+The variable name_servers defines a list of DNS IPs.
+
+The Jinja2 template loops through each item in that list.
+
+When rendered, it produces a complete /etc/resolv.conf file with all nameservers listed.
+
+//////////////////////////////LAB ////////////////////
+
+
+Which of the following Jinja2 expressions you will use along with the variable named user that generates the below output? Given that user=Tony.
+
+
+His name is Tony.
+
+a. His name is {{ Tony }}
+
+b. His name is {{ user }}
+
+c. His name is { user }
+
+d. His name is { Tony }
+
+Answer: B - b. His name is {{ user }}
+
+
+
+Which of the following Jinja2 expressions you will use to display the book_name in title case?
+
+
+{
+  "book_name": "Title of books are usually title cased"
+}
+
+
+a. {{ book_name | title }}
+
+b. {{ book_name | Title }}
+
+c. {{ book_name }} | {{ title }}
+
+d. {{ book_name }} | {{ Title }}
+
+Answer: a - a. {{ book_name | title }}
+
+Which of the following Jinja2 expressions you will use to display the highest number in the given array?
+
+
+{
+  "numbers": [
+    13,
+    32,
+    53,
+    34,
+    25,
+    76,
+    17
+  ]
+}
+
+a. {{ numbers }} | {{ max }}
+
+b. {{ numbers | Max }}
+
+c. {{ numbers | max }}
+
+d. {{ numbers }} | {{ Max }}
+
+Answer:  c. {{ numbers | max }}
+
+There is a jinja2 template named /home/bob/playbooks/upper/templates/student.txt.j2 present on the student-node. Update this template to display the value of student variable in UPPERCASE.
+
+
+
+Example Data:
+
+{
+  "name": "David"
+}
+
+
+
+Expected output:
+
+The student name is DAVID
+
+did:
+
+[bob@student-node templates]$ cat student.txt.j2 
+The student name is {{ student.name | upper }}
+
+and notcorrect:
+
+[bob@student-node templates]$ cat student.txt.j2 
+The student name is {{ student | upper }}
+
+
+
+There is a template named /home/bob/playbooks/replace/templates/name.txt.j2 on student-node. Similarly, there is a playbook named /home/bob/playbooks/replace/playbook.yml on student-node itself.
+
+
+
+Update this playbook to generate a file named /tmp/name.txt on student-node from the given jinja2 template, and make sure to fix the dialogue where string Bourne must be replaced with string Bond.
+
+cat the files first:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/replace/templates/name.txt.j2
+{{ dialogue }}
+
+
+yaml:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/replace/playbook.yml
+- hosts: localhost
+  connection: local
+  vars:
+    dialogue: "The name is Bourne, James Bourne!"
+  tasks:
+
+
+added:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/replace/templates/name.txt.j2
+{{ dialogue |  replace("Bourne", "Born") }}
+
+and yaml:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/replace/playbook.yml
+- hosts: localhost
+  connection: local
+  vars:
+    dialogue: "The name is Bourne, James Bourne!"
+  tasks:
+    - name: Create student text file from template
+      template:
+        src: name.txt.j2
+        dest: /tmp/name.txt
+
+run:
+
+
+/home/bob/playbooks/replace/playbook.yml
+
+Validation: [bob@student-node playbooks]$ cat /tmp/name.txt
+            The name is Born, James Born!
+
+
+A monitoring server (node01) has newly been introduced in your environment. We need to update the agents.conf file with a list of servers in the environment and their details.
+
+
+
+Navigate to the /home/bob/playbooks/monitoring-server directory. The list of servers is given in the inventory file under group lamp_app. This information must be used to generate an agents.conf file at /etc/agents.conf location on the monitoring_server i.e node01.
+
+
+Update the generate-agent-info.yml playbook. Use the given template file /home/bob/playbooks/monitoring-server/templates/agents.conf.j2. Moreover, a sample output file name /home/bob/playbooks/monitoring-server/templates/agents.conf.j2 is also given for your reference. The target servers are not up yet, so don't try to connect to them. Just use their details given in the inventory file.
+
+CD to the directory:
+
+[bob@student-node playbooks]$ cd /home/bob/playbooks/monitoring-server
+[bob@student-node monitoring-server]$ ls
+ansible.cfg  generate-agent-info.yml  inventory  sample_agents.conf  templates
+
+inventory:
+
+[bob@student-node monitoring-server]$ cat inventory 
+monitoring_server ansible_host=node01 ansible_ssh_pass=caleston123 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[lamp_app]
+web0001 ansible_hostname=web0001.company.com ansible_host=10.1.1.101 monitor_port=8080 protocol=http
+web0002 ansible_hostname=web0002.company.com ansible_host=10.1.1.102 monitor_port=8080 protocol=http
+db0003 ansible_hostname=db0003.company.com ansible_host=10.1.1.103 monitor_port=3306 protocol=tcp
+db0004 ansible_hostname=db0004.company.com ansible_host=10.1.1.104 monitor_port=3306 protocol=tcp
+db0005 ansible_hostname=db0005.company.com ansible_host=10.1.1.105 monitor_port=3306 protocol=tcp
+
+yaml:
+
+[bob@student-node monitoring-server]$ cat generate-agent-info.yml
+# generate-agent-info.yml
+- hosts: monitoring_server
+  become: yes
+  tasks
+
+
+[bob@student-node templates]$ cat agents.conf.j2 
+hostname, ipaddress, monitor_port, type, protocol
+
+created next yaml:
+
+[bob@student-node templates]$ cat generate-agent-info.yml
+---
+- hosts: lamp_app
+  tasks:
+    - name: Generate student file
+      template:
+        src: agents.conf.j2
+        dest: /etc/agents.conf.j2
+
+or yaml:
+
+[bob@student-node monitoring-server]$ cat generate-agent-info.yml 
+# generate-agent-info.yml
+- hosts: lamp_app
+  become: yes
+  tasks:
+    - name: Generate student file
+      template:
+        src: agents.conf.j2
+        dest: /etc/agents.conf.j2
+
+jinja file leave as is:
+
+cat basic:
+[bob@student-node templates]$ cat agents.conf.j2 
+hostname, ipaddress, monitor_port, type, protocol
+
+update to be:
+
+[bob@student-node templates]$ cat agents.conf.j2 
+Host: {{ inventory_hostname }}
+Type: {{ inventory_hostname | regex_replace('[0-9]+', '') }}
+IP: {{ ansible_host }}
+Port: {{ monitor_port }}
+Protocol: {{ protocol }}
+
+run:
+
+[bob@student-node monitoring-server]$ ansible-playbook -i inventory generate-agent-info.yml 
+
+PLAY [lamp_app] *******************************************************************************************************************************************************************
+
+TASK [Generate student file] ******************************************************************************************************************************************************
+fatal: [web0001]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 10.1.1.101 port 22: Connection timed out", "unreachable": true}
+fatal: [web0002]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 10.1.1.102 port 22: Connection timed out", "unreachable": true}
+fatal: [db0004]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 10.1.1.104 port 22: Connection timed out", "unreachable": true}
+fatal: [db0003]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 10.1.1.103 port 22: Connection timed out", "unreachable": true}
+fatal: [db0005]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 10.1.1.105 port 22: Connection timed out", "unreachable": true}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+db0003                     : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+db0004                     : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+db0005                     : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+web0001                    : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+web0002                    : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0
+
+
+solution from:
+
+
+Edit the agents.conf.j2 template:
+
+
+vi /home/bob/playbooks/monitoring-server/templates/agents.conf.j2
+
+
+
+Update it as below:
+
+
+hostname, ipaddress, monitor_port, type, protocol
+{% for host in groups['lamp_app'] %}
+{{ host }}, {{ hostvars[host]['ansible_host'] }}, {{ hostvars[host]['monitor_port'] }}, {{ hostvars[host]['protocol'] }}
+{% endfor %}
+
+
+
+Edit the generate-agent-info.yml playbook.
+
+
+vi /home/bob/playbooks/monitoring-server/generate-agent-info.yml
+
+
+
+Update it as below:
+
+
+---
+- hosts: monitoring_server
+  become: yes
+  tasks:
+    - template:
+        src: agents.conf.j2
+        dest: /etc/agents.conf
+
+
+
+Execute the playbook:
+
+
+cd /home/bob/playbooks/monitoring-server/
+ansible-playbook -i inventory generate-agent-info.yml
+
+correct jinja:
+
+hostname, ipaddress, monitor_port, type, protocol
+{% for host in groups['lamp_app'] %}
+{{ host }}, {{ hostvars[host]['ansible_host'] }}, {{ hostvars[host]['monitor_port'] }}, {{ host | regex_replace('[0-9]+', '') }}, {{ hostvars[host]['protocol'] }}
+{% endfor %}
+
+
+
+Navigate to /home/bob/playbooks/inventory/ directory. A report template named inventory.csv.j2 is given under the templates directory.
+
+
+Update the template to print the requested details of all hosts defined in /home/bob/playbooks/inventory/inventory file. Further update /home/bob/playbooks/inventory/generate-inventory.yml playbook to generate the report and place it on the student-node node at /tmp/inventory.csv.
+
+
+
+Use below variables from the gathered facts for each host.
+
+
+
+cat inventory:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/inventory/inventory
+[web]
+node01 ansible_hostname=node01 ansible_host=node01 ansible_ssh_pass=caleston123 ansible_user=bob ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+node02 ansible_hostname=node02 ansible_host=node02 ansible_ssh_pass=caleston123 ansible_user=bob ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+yaml:
+
+[bob@student-node templates]$ cat /home/bob/playbooks/inventory/generate-inventory.yml
+# generate-inventory.yml
+
+- hosts: all
+  tasks:
+  - setup:
+
+Solution:
+
+jinja file:
+
+
+hostname, architecture, distro_version, mem_mb, cores, cpu_count
+{% for host in groups['all'] %}
+{{ host }},
+{{ hostvars[host].ansible_architecture }},
+{{ hostvars[host].ansible_distribution_version }},
+{{ hostvars[host].ansible_memtotal_mb }},
+{{ hostvars[host].ansible_processor_cores }},
+{{ hostvars[host].ansible_processor_count }}
+{% endfor %}
+
+yaml should have: 
+
+/home/bob/playbooks/inventory/generate-inventory.yml
+
+
+---
+- hosts: all
+  gather_facts: yes
+
+- hosts: student-node
+  become: yes
+  tasks:
+    - name: Generate inventory CSV report
+      template:
+        src: inventory.csv.j2
+        dest: /tmp/inventory.csv
+
+run:
+
+[bob@student-node inventory]$ ansible-playbook -i inventory generate-inventory.yml
+
+PLAY [all] ************************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [node01]
+ok: [node02]
+[WARNING]: Could not match supplied host pattern, ignoring: student-node
+
+PLAY [student-node] ***************************************************************************************************************************************************************
+skipping: no hosts matched
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+or yaml can be as:
+
+
+Update it as below:
+
+
+hostname, architecture, distribution_version, mem_total_mb, processor_cores, processor_count
+{% for host in groups['web'] %}
+{{ host }}, {{ hostvars[host]['ansible_architecture'] }}, {{ hostvars[host]['ansible_distribution_version'] }}, {{ hostvars[host]['ansible_memtotal_mb'] }}, {{ hostvars[host]['ansible_processor_cores'] }}, {{ hostvars[host]['ansible_processor_count'] }}
+{% endfor %}
