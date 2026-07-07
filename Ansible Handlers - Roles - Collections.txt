@@ -1,0 +1,856 @@
+Ansible handlers are special tasks that run only when notified, usually after a change.  
+
+A handler is just a normal task placed under a handlers: section.
+It runs at the end of the play, only if something notified it.
+
+Example mental model:
+
+You install a package
+
+You update a config file
+
+Only if the config changed → restart the service
+
+If nothing changed → don’t restart
+
+This avoids pointless restarts that could cause downtime.
+
+
+
+Why handlers are needed
+Here’s the real value:
+
+Idempotency — don’t restart services when nothing changed
+
+Efficiency — restart once even if multiple tasks notify the same handler
+
+Safety — avoid breaking running systems
+
+Order — handlers run after all tasks, so your service restarts only after everything is ready
+
+
+
+Use a handler whenever a change requires a follow‑up action, such as:
+
+Restarting a service
+
+Reloading a daemon
+
+Rebuilding a cache
+
+Triggering a deployment step
+
+If the action should happen only when something changed, it belongs in a handler.
+
+
+tasks:
+  - name: Update nginx config
+    template:
+      src: nginx.conf.j2
+      dest: /etc/nginx/nginx.conf
+    notify: restart nginx
+
+handlers:
+  - name: restart nginx
+    service:
+      name: nginx
+      state: restarted
+
+If the template changes → handler runs.
+If not → no restart.
+
+/////////////////////////ROLES //////////////
+
+
+
+A Role is a self‑contained unit of automation: tasks, handlers, templates, files, variables — all organized in a predictable folder structure.
+
+Think of Roles as LEGO blocks: each block does one thing well (nginx, docker, users, firewall).
+Then you assemble them into a full system.
+
+
+Ansible Galaxy is one of the most misunderstood parts of Ansible — but once you get it, Roles suddenly make sense.
+
+Let’s break it down clearly and deeply.
+
+🎯 What Ansible Galaxy Actually Is
+Ansible Galaxy is:
+
+1) A public marketplace of Ansible Roles & Collections
+Like GitHub, but specifically for Ansible automation.
+
+You can download ready-made Roles for:
+
+nginx
+
+docker
+
+mysql
+
+kubernetes
+
+users management
+
+hundreds more
+
+These Roles are reusable building blocks created by the community or vendors.
+
+
+) A command-line tool
+The ansible-galaxy command helps you:
+
+create new roles
+
+install roles
+
+manage roles
+
+publish roles
+
+This is the part you use daily.
+
+
+
+The Most Important Commands
+1) Create a new Role
+bash
+ansible-galaxy init nginx
+This generates the full Role folder structure:
+
+Code
+nginx/
+  tasks/
+  handlers/
+  templates/
+  files/
+  vars/
+  defaults/
+  meta/
+Ansible knows how to find your Role because it follows this structure.
+
+2) Install a Role from Galaxy
+bash
+ansible-galaxy install geerlingguy.nginx
+This downloads the Role into:
+
+Code
+~/.ansible/roles/
+or your project’s roles/ folder.
+
+Then you can use it:
+
+yaml
+roles:
+  - geerlingguy.nginx
+3) List installed Roles
+bash
+ansible-galaxy list
+4) Remove a Role
+bash
+ansible-galaxy remove geerlingguy.nginx
+🔍 How Ansible Finds Role Code
+When you write:
+
+yaml
+roles:
+  - nginx
+Ansible searches in this order:
+
+./roles/nginx/ (your project)
+
+~/.ansible/roles/nginx/ (your user)
+
+/etc/ansible/roles/nginx/ (system-wide)
+
+Galaxy-installed roles
+
+It looks specifically for:
+
+tasks/main.yml
+
+handlers/main.yml
+
+templates/
+
+files/
+
+vars/
+
+defaults/
+
+meta/
+
+This is why the folder structure matters.
+
+
+Real Examples of Using Roles
+Example 1 — Webserver stack
+yaml
+- hosts: webservers
+  roles:
+    - common
+    - users
+    - firewall
+    - nginx
+    - php
+Example 2 — Database server
+yaml
+- hosts: dbservers
+  roles:
+    - common
+    - mysql
+    - backup
+Example 3 — Kubernetes node
+yaml
+- hosts: k8s_nodes
+  roles:
+    - docker
+    - kubelet
+    - kubeadm
+    - cni
+Example 4 — CI/CD server
+yaml
+- hosts: cicd
+  roles:
+    - jenkins
+    - docker
+    - firewall
+
+
+A deeper insight
+Ansible Galaxy is NOT required to use Roles.  
+You can create Roles manually in your project.
+
+Galaxy is simply:
+
+a tool to generate Roles
+
+a repository to download Roles
+
+a standard for Role structure
+
+But the Role mechanism itself is built into Ansible.
+
+
+Role name: nginx
+Directory structure:
+
+Code
+roles/
+  nginx/
+    tasks/
+      main.yml
+    handlers/
+      main.yml
+    templates/
+      nginx.conf.j2
+    files/
+    defaults/
+      main.yml
+    vars/
+      main.yml
+    meta/
+      main.yml
+Ansible automatically finds this Role because it lives under roles/nginx/ in your project.
+
+🛠️ 1) tasks/main.yml — main logic
+Every Role must have this file.
+Ansible starts here.
+
+yaml
+- name: Install nginx package
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Deploy nginx configuration
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+  notify: restart nginx
+
+- name: Ensure nginx is running
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+Key points
+The template task triggers a handler only if the file changes.
+
+The Role installs, configures, and starts nginx.
+
+🔥 2) handlers/main.yml — restart logic
+Handlers run only when notified.
+
+yaml
+- name: restart nginx
+  service:
+    name: nginx
+    state: restarted
+This prevents unnecessary restarts.
+
+
+templates/nginx.conf.j2 — dynamic config
+This is a Jinja2 template.
+
+jinja2
+user www-data;
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    server {
+        listen {{ nginx_port }};
+        server_name {{ server_name }};
+
+        location / {
+            root {{ nginx_root }};
+            index index.html;
+        }
+    }
+}
+Variables come from defaults/main.yml or vars/main.yml.
+
+
+4) defaults/main.yml — default variables
+Lowest priority, safe to override.
+
+yaml
+nginx_port: 80
+nginx_root: /var/www/html
+server_name: "{{ inventory_hostname }}"
+📌 5) vars/main.yml — high‑priority variables
+Use only when you need variables that should NOT be overridden.
+
+yaml
+nginx_user: www-data
+🔗 6) meta/main.yml — dependencies (optional)
+yaml
+dependencies: []
+You could add Roles that must run before nginx.
+
+🧱 7) Using the Role in a playbook
+This is how Ansible finds and loads the Role:
+
+yaml
+- hosts: webservers
+  roles:
+    - nginx
+Ansible searches for roles/nginx/ and loads:
+
+tasks/main.yml
+
+handlers/main.yml
+
+defaults/main.yml
+
+vars/main.yml
+
+templates/*
+
+meta/main.yml
+
+Automatically — no imports needed.
+
+
+
+
+🧩 1. Listing installed Roles
+bash
+ansible-galaxy list
+This command lists all Roles currently installed on your system.
+In the example:
+
+Code
+- geerlingguy.mysql
+- kodekloud1.mysql
+These are two MySQL Roles downloaded from Ansible Galaxy — reusable automation packages.
+
+⚙️ 2. Checking Role configuration paths
+bash
+ansible-config dump | grep ROLE
+This shows where Ansible looks for Roles by default.
+The output includes:
+
+Code
+DEFAULT_ROLES_PATH(default) = ['/root/.ansible/roles', '/usr/share/ansible/roles', '/etc/ansible/roles']
+So when you write:
+
+yaml
+roles:
+  - mysql
+Ansible searches those directories for a folder named mysql.
+
+You can add your own path in ansible.cfg:
+
+ini
+roles_path = ./roles:/opt/ansible/roles
+📦 3. Installing a Role from Galaxy
+bash
+ansible-galaxy install geerlingguy.mysql -p ./roles
+This downloads the Role geerlingguy.mysql into your local ./roles directory.
+The -p flag sets the installation path.
+
+After installation, you can use it in a playbook:
+
+yaml
+- hosts: dbservers
+  roles:
+    - geerlingguy.mysql
+
+////////////////////////Ansible Collections //////////////
+
+What Ansible Collections REALLY Are
+An Ansible Collection is a package of Ansible content bundled together:
+
+Roles
+
+Modules
+
+Plugins
+
+Playbooks
+
+Documentation
+
+Dependencies
+
+Think of a Collection as a super‑role or a mini‑library.
+
+Collections are how Ansible organizes content today.
+Roles alone are old-school — Collections are the modern standard.
+
+
+
+Why Collections exist
+Collections solve several problems:
+
+Versioning — each collection has its own version
+
+Distribution — easy to share across teams
+
+Namespaces — avoids name conflicts
+
+Packaging — modules + roles + plugins together
+
+Galaxy support — install from Galaxy or private registries
+
+This is why Red Hat, AWS, Cisco, VMware, and others publish their automation as Collections.
+
+xample: AWS Collection
+The AWS collection includes:
+
+modules (ec2_instance, s3_bucket)
+
+roles (aws_config)
+
+plugins
+
+docs
+
+You install it like this:
+
+bash
+ansible-galaxy collection install amazon.aws
+Then you use it like this:
+
+yaml
+- name: Create EC2 instance
+  amazon.aws.ec2_instance:
+    name: web01
+    instance_type: t2.micro
+
+Collection structure
+A collection looks like this:
+
+Code
+my_namespace/
+  my_collection/
+    roles/
+    plugins/
+      modules/
+      filters/
+      lookup/
+    playbooks/
+    docs/
+    meta/
+This is much bigger than a role.
+
+🛠️ How to install a Collection
+bash
+ansible-galaxy collection install my_namespace.my_collection
+Examples:
+
+bash
+ansible-galaxy collection install ansible.posix
+ansible-galaxy collection install community.general
+ansible-galaxy collection install amazon.aws
+🔧 How to use a Collection in a playbook
+1) Using a module
+yaml
+- name: Manage firewall
+  ansible.posix.firewalld:
+    service: http
+    state: enabled
+2) Using a role
+yaml
+- hosts: all
+  roles:
+    - role: my_namespace.my_collection.my_role
+3) Using a plugin
+yaml
+vars:
+  my_value: "{{ lookup('community.general.random_string') }}"
+
+
+
+Example:
+
+Ansible Collection to automate AWS tasks.
+
+ ansible-galaxy collection install amazon.aws
+
+This downloads the amazon.aws collection from Ansible Galaxy.
+It contains modules for managing AWS resources like EC2, S3, IAM, and more.
+
+
+yaml
+---
+- hosts: localhost
+  collections:
+    - amazon.aws
+
+  tasks:
+    - name: Create an S3 bucket
+      aws_s3_bucket:
+        name: my-bucket
+        region: us-west-1
+
+Define the playbook
+yaml
+- hosts: localhost
+The playbook runs on your local machine (not a remote host).
+That’s common when using cloud APIs.
+
+3️⃣ Load the collection
+yaml
+collections:
+  - amazon.aws
+This tells Ansible to use modules from the AWS collection.
+
+4️⃣ Create an S3 bucket
+yaml
+- name: Create an S3 bucket
+  aws_s3_bucket:
+    name: my-bucket
+    region: us-west-1
+This task calls the aws_s3_bucket module (part of the AWS collection) to create a new S3 bucket named my-bucket in the us-west-1 region.
+
+
+///////////////////////////////////////LAB ////////////////////////////////////
+
+
+You've been tasked with automating the configuration of Juniper devices in your network, to achieve this, you need to install the appropriate Ansible Collection that provides Juniper-specific modules and roles.
+
+Which of the following commands would you use to install the Juniper-specific collection for network automation?
+
+
+a. ansible-galaxy collection install junipernetworks.junos
+
+b. ansible-galaxy retrieve collection junipernetworks.junos
+
+c. ansible-galaxy collection get network.juniper
+
+d. ansible-galaxy get collection junipernetworks.junos
+
+
+Answer: ansible-galaxy collection install junipernetworks.junos
+
+
+
+You've installed the amazon.aws collection and now you need to create an EC2 instance using a playbook.
+
+
+Given the following playbook snippet, identify the missing line that correctly imports the amazon.aws collection.
+
+
+---
+- hosts: localhost
+  [MISSING LINE HERE]
+  tasks:
+    - name: Launch an EC2 instance
+      ec2_instance:
+        name: my-instance
+        region: us-west-1
+
+
+
+
+a. collections: [amazon.aws]
+
+b. collection: [amazon.aws]
+
+c. collections=[amazon.aws]
+
+d. collection=[amazon.aws]
+
+Answer: collections: [amazon.aws]
+
+
+You are given access to a lab environment with a machine (i.e student-node) that has Ansible installed. On this machine, there's a /home/bob/playbooks/requirements.yml file that lists several collections required for a project. Your task is to install all the collections listed in the /home/bob/playbooks/requirements.yml file using the correct command.
+
+try: ansible-galaxy collection install amazon.aws:1.2.1
+
+try: ansible-galaxy collection install community.general:1.0.0
+
+Next step is to use it:
+
+
+Step 1 — Make sure AWS credentials are available
+Ansible uses your AWS credentials exactly like the AWS CLI.
+
+You can set them in environment variables:
+
+bash
+export AWS_ACCESS_KEY_ID=YOUR_KEY
+export AWS_SECRET_ACCESS_KEY=YOUR_SECRET
+export AWS_REGION=us-west-1
+Or in ~/.aws/credentials:
+
+Code
+[default]
+aws_access_key_id = YOUR_KEY
+aws_secret_access_key = YOUR_SECRET
+Guided link: AWS authentication
+
+🧩 Step 2 — Import the collection in your playbook
+yaml
+collections:
+  - amazon.aws
+This tells Ansible:
+“Use modules from the amazon.aws collection.”
+
+🧩 Step 3 — Use a module from the collection
+Here are the most common examples.
+
+✔️ Create an S3 bucket
+yaml
+- hosts: localhost
+  collections:
+    - amazon.aws
+
+  tasks:
+    - name: Create S3 bucket
+      amazon.aws.s3_bucket:
+        name: my-bucket
+        state: present
+✔️ Launch an EC2 instance
+yaml
+- hosts: localhost
+  collections:
+    - amazon.aws
+
+  tasks:
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        name: web01
+        instance_type: t2.micro
+        image_id: ami-0abcdef1234567890
+        region: us-west-1
+✔️ Create an IAM user
+yaml
+- hosts: localhost
+  collections:
+    - amazon.aws
+
+  tasks:
+    - name: Create IAM user
+      amazon.aws.iam_user:
+        name: dani
+        state: present
+
+
+
+You've been informed about a new Ansible Collection named networking_tools under the namespace company_xyz. This collection contains specialized modules for network automation. You need to write a playbook that uses a custom module named configure_vlan from it to set up VLAN 10 with the name Admin_VLAN.
+
+
+Complete the playbook located at /home/bob/playbooks/playbook.yml to utilize the configure_vlan module. You just need to fill the placeholders in this playbook.
+
+
+Please note that, you need not to run this playbook for testing, just make the required changes to fill the placeholders correctly.
+
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yml
+---
+- hosts: switches
+  collections:
+    - company_xyz.networking_tools
+  tasks:
+    - name: Configure VLAN 10
+      configure_vlan:
+        vlan_id: 10
+        vlan_name: Admin_VLAN
+
+
+
+Given the following sample Ansible playbook /update_web_server_config.yml
+
+
+- name: Update web server configuration
+  hosts: webservers
+  tasks:
+    - name: Copy web server configuration file
+      copy:
+        src: /path/to/webserver.conf
+        dest: /etc/webserver/webserver.conf
+      notify: Restart web server
+
+
+
+
+Which of the following handler implementations will correctly restart the web server when the configuration file is changed?
+
+
+a.
+
+handlers:
+  - name: Restart web servers
+    service:
+      name: webserver
+      state: restarted
+
+
+
+b.
+
+handlers:
+  - name: Restart server
+    service:
+      name: webserver
+      state: restarted
+
+
+
+c.
+
+handlers:
+  - name: Restart
+    service:
+      name: webserver
+      state: restarted
+
+d.
+
+handlers:
+  - name: Restart web server
+    service:
+      name: webserver
+      state: restarted
+
+Answer is : d - cause it is only one with correct name - Restart web server !!!
+
+
+
+You are given access to a lab environment with a server (i.e student-node). On this server, you have a playbook named /home/bob/ansible_lab/handler_test.yml. This playbook contains multiple tasks that notify the same handler. Your task is to run the playbook and answer below question.
+
+
+How many times will the handler be executed during the playbook run?
+
+
+a) Once for each notifying task.
+
+b) Only once, at the end of the playbook run.
+
+c) Once for each changed task.
+
+d) The handler will not be executed.
+
+
+see the yaml:
+
+[bob@student-node ~]$ cat /home/bob/playbooks/playbook.yml
+---
+- hosts: switches
+  collections:
+    - company_xyz.networking_tools
+  tasks:
+    - name: Configure VLAN 10
+      configure_vlan:
+        vlan_id: 10
+        vlan_name: Admin_VLAN
+[bob@student-node ~]$ ^C
+[bob@student-node ~]$ cat /update_web_server_config.yml
+cat: /update_web_server_config.yml: No such file or directory
+[bob@student-node ~]$ cat /home/bob/ansible_lab/handler_test.yml
+---
+- name: Test Handler Execution
+  hosts: localhost
+  tasks:
+    - name: Copy file1.conf
+      copy:
+        src: files/file1.conf
+        dest: /tmp/file1.conf
+      notify: Sample Handler
+
+    - name: Copy file2.conf
+      copy:
+        src: files/file2.conf
+        dest: /tmp/file2.conf
+      notify: Sample Handler
+
+  handlers:
+    - name: Sample Handler
+      debug:
+        msg: "Handler has been triggered!"
+
+Answer: is B  - only once
+
+
+
+You have a handler named Restart Network Service. Which of the following task implementations correctly notifies this handler when the network configuration file is modified?
+
+
+a.
+
+- name: Update network configuration
+  copy:
+    src: /path/to/network.conf
+    dest: /etc/network/network.conf
+
+
+
+b.
+
+- name: Update network configuration
+  copy:
+    src: /path/to/network.conf
+    dest: /etc/network/network.conf
+  notify: Restart Network Service
+
+
+
+c.
+
+- name: Update network configuration
+  copy:
+    src: /path/to/network.conf
+    dest: /etc/network/network.conf
+  handler: Restart Network Service
+
+
+
+d.
+
+- name: Update network configuration
+  copy:
+    src: /path/to/network.conf
+    dest: /etc/network/network.conf
+  trigger: Restart Network Service
+
+
+Answer is : b - cause it has notify !!!!
+
