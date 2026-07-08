@@ -1,1 +1,392 @@
 VirtualBox images can be found at: https://osboxes.org
+
+
+
+from ansible controller server test connectivity to the target server - which should be mentioned in the inventory file:
+
+
+Ansible connectivity test:
+
+bash
+ansible target1 -m ping -i inventory.txt
+
+Other useful Ansible ad‑hoc commands
+Check uptime
+
+bash
+ansible all -m command -a "uptime" -i inventory.txt
+Gather facts
+
+bash
+ansible all -m setup -i inventory.txt
+Copy a file
+
+bash
+ansible all -m copy -a "src=/etc/hosts dest=/tmp/hosts" -i inventory.txt
+Run a shell command
+
+bash
+ansible all -m shell -a "df -h" -i inventory.txt
+Reboot hosts
+
+bash
+ansible all -m reboot -i inventory.txt
+
+
+
+How to do SSJ connection not ask for the fingerprint and do in on all servers:
+
+
+Full bootstrap playbook (production‑ready)
+This playbook runs on localhost (your controller) and:
+
+scans all hosts
+
+builds a known_hosts file
+
+installs it
+
+verifies connectivity
+
+yaml
+---
+- name: Bootstrap SSH trust for all inventory hosts
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    inventory_hosts: "{{ groups['all'] }}"
+
+  tasks:
+
+    - name: Gather SSH host keys
+      command: "ssh-keyscan -H {{ item }}"
+      loop: "{{ inventory_hosts }}"
+      register: scanned_keys
+
+    - name: Write collected keys to temporary file
+      copy:
+        dest: /tmp/known_hosts.generated
+        content: "{{ scanned_keys.results | map(attribute='stdout') | join('\n') }}"
+
+    - name: Install known_hosts file system-wide
+      become: yes
+      copy:
+        src: /tmp/known_hosts.generated
+        dest: /etc/ssh/ssh_known_hosts
+        mode: '0644'
+
+    - name: Verify connectivity
+      command: "ansible all -m ping -i inventory"
+      register: ping_output
+
+    - debug:
+        var: ping_output.stdout
+🧠 Why this is production‑safe
+No manual SSH acceptance
+
+Host key checking stays enabled (important for security)
+
+Centralized trust file (/etc/ssh/ssh_known_hosts)
+
+Auditable onboarding
+
+Repeatable automation
+
+/////////////////////////////////LAB /////////////////
+
+
+In this lab exercise you will use below hosts. Please note down some details about these hosts as given below:
+
+
+student-node :- This host will act as an Ansible master node where you will create playbooks, inventory, roles etc and you will be running your playbooks from this host itself.
+
+
+node01 :- This host will act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+
+Password: caleston123
+
+
+node02 :- This host will also act as an Ansible client/remote host where you will setup/install some stuff using Ansible playbooks. Below are the SSH credentials for this host:
+
+
+User: bob
+
+Password: caleston123
+
+
+Note: Please type exit or logout on the terminal or press CTRL + d to log out from a specific node.
+
+Install ansible on student-node.
+
+check OS version and name:
+
+[bob@student-node ~]$ cat /etc/os-release
+NAME="CentOS Stream"
+VERSION="9"
+ID="centos"
+ID_LIKE="rhel fedora"
+VERSION_ID="9"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="CentOS Stream 9"
+ANSI_COLOR="0;31"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:centos:centos:9"
+HOME_URL="https://centos.org/"
+BUG_REPORT_URL="https://issues.redhat.com/"
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux 9"
+REDHAT_SUPPORT_PRODUCT_VERSION="CentOS Stream"
+
+
+Install ansible on os Centos: sudo yum install ansible -y
+
+validate ansible version:
+
+[bob@student-node ~]$ ansible --version
+ansible [core 2.14.18]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+
+create directory:
+
+
+[bob@student-node ~]$ mkdir -p /home/bob/ansible
+touch /home/bob/ansible/ansible.cfg
+[bob@student-node ~]$ ls
+ansible  playbooks
+[bob@student-node ~]$ sudo vim /home/bob/ansible/ansible.cfg
+
+and add:
+
+[defaults]
+host_key_checking = False
+
+Create an Ansible inventory file called inventory for host node01 under /home/bob/playbooks directory.
+
+
+
+Below are the details of node01:
+
+
+Hostname: node01
+
+User: bob
+
+Password: caleston123
+
+
+[bob@student-node playbooks]$ cat inventory
+node01 ansible_host=node01 ansible_user=bob ansible_password=caleston123
+
+We already have an inventory file /home/bob/playbooks/inventory. Add an alias for node02 host in it. Find the below details for the node02 host:
+
+
+
+Hostname: node02
+
+User: bob
+
+Password: caleston123
+
+done:
+
+[bob@student-node playbooks]$ cat inventory
+node01 ansible_host=node01 ansible_user=bob ansible_password=caleston123
+mode02 ansible_host=node02 ansible_user=bob answible_password=caleston123
+
+
+Create a group called web_nodes in /home/bob/playbooks/inventory inventory file, further add node01 and node02 as a member of this group.
+
+
+
+[bob@student-node playbooks]$ cat inventory
+node01 ansible_host=node01 ansible_user=bob ansible_password=caleston123
+mode02 ansible_host=node02 ansible_user=bob answible_password=caleston123
+
+[web_nodes]
+node01
+node02
+
+
+Represent the below given data in Ansible Inventory format in /home/bob/playbooks/inventory_table file
+
+
+
+Server Alias	Server Name	OS	User	Password
+sql_db1	sql01.xyz.com	Linux	root	Lin$Pass
+sql_db2	sql02.xyz.com	Linux	root	Lin$Pass
+web_node1	web01.xyz.com	Win	administrator	Win$Pass
+web_node2	web02.xyz.com	Win	administrator	Win$Pass
+web_node3	web03.xyz.com	Win	administrator	Win$Pass
+
+
+Group	Members
+db_nodes	sql_db1, sql_db2
+web_nodes	web_node1, web_node2, web_node3
+boston_nodes	sql_db1, web_node1
+dallas_nodes	sql_db2, web_node2, web_node3
+us_nodes	boston_nodes, dallas_nodes
+
+
+
+
+[bob@student-node playbooks]$ cat inventory_table
+# ============================
+# Host Definitions
+# ============================
+
+sql_db1 ansible_host=sql01.xyz.com ansible_user=root ansible_password=Lin$Pass ansible_os_family=Linux
+sql_db2 ansible_host=sql02.xyz.com ansible_user=root ansible_password=Lin$Pass ansible_os_family=Linux
+
+web_node1 ansible_host=web01.xyz.com ansible_user=administrator ansible_password=Win$Pass ansible_os_family=Windows
+web_node2 ansible_host=web02.xyz.com ansible_user=administrator ansible_password=Win$Pass ansible_os_family=Windows
+web_node3 ansible_host=web03.xyz.com ansible_user=administrator ansible_password=Win$Pass ansible_os_family=Windows
+
+
+# ============================
+# Groups
+# ============================
+
+[db_nodes]
+sql_db1
+sql_db2
+
+[web_nodes]
+web_node1
+web_node2
+web_node3
+
+[boston_nodes]
+sql_db1
+web_node1
+
+[dallas_nodes]
+sql_db2
+web_node2
+web_node3
+
+[us_nodes:children]
+boston_nodes
+dallas_nodes
+
+
+Create a playbook called /home/bob/playbooks/command.yml which should execute the command to display the contents of file /etc/resolv.conf on localhost. Make sure to use command module to complete this task.
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/command.yml
+---
+- name: Execute a command on localhost
+  hosts: locahost
+  connection: local  
+  tasks:
+    - name: Execute a command
+      command: cat /etc/resolv.conf
+
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory command.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /etc/ansible/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: command.yml ***********************************************************************************************************************************
+1 plays in command.yml
+[WARNING]: Could not match supplied host pattern, ignoring: locahost
+
+PLAY [Execute a command on localhost] *******************************************************************************************************************
+skipping: no hosts matched
+
+PLAY RECAP **********************************************************************************************************************************************
+
+[bob@student-node playbooks]$ 
+
+[bob@student-node playbooks]$ cat /etc/resolv.conf
+search vst2hokwoitpm7nb.svc.cluster.local svc.cluster.local cluster.local us-central1-a.c.kk-lab-prod.internal c.kk-lab-prod.internal google.internal
+nameserver 10.96.0.10
+options ndots:5
+
+
+
+
+Create a playbook callled perm.yml under /home/bob/playbooks directory on student-node, an inventory file called inventory is already present under /home/bob/playbooks directory itself. Using this playbook perform below mentioned tasks:
+
+
+
+1. Create an empty file called blog.txt under /opt/news/ directory on node01. Change its group owner to sam .
+
+
+2. Create an empty file called story.txt under /opt/news/ directory on node02. Change its user owner to sam .
+
+[bob@student-node playbooks]$ cat per.yml
+---
+- name: Perm task here for node01
+  hosts: node01
+  tasks:
+    - name: Create an empty file
+      file:
+        path: /opt/news/blog.txt
+        state: touch
+        group: sam
+- name: Perm task here for node02
+  hosts: node02
+  tasks:
+    - name: Create an empty file
+      file:
+        path: /opt/news/blog.txt
+        state: touch
+        group: sam 
+
+
+
+Create a playbook called file.yml under /home/bob/playbooks/ directory and use this playbook to create a file called /opt/file.txt on node01 host. The contents of the file must be This file is created by Ansible!
+
+
+
+[bob@student-node playbooks]$ cat file.yml
+- name: Created by Ansible
+  hosts: node01
+  tasks:
+    - name: Create a file with text
+      file:
+        copy:
+          dest: /opt/file.txt
+          content: "This file is created by Ansible!" 
+
+
+and run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory file.yml
+
+
+Create a playbook called copy.yml under /home/bob/playbooks/ directory to copy /usr/src/blog/index.html file to both nodes i.e node01 and node02 at location /opt/blog.
+
+
+copy.yml (Ansible Playbook)
+yaml
+---
+- name: Copy blog file to both nodes
+  hosts: node01,node02
+  tasks:
+    - name: Copy index.html to /opt/blog
+      copy:
+        src: /usr/src/blog/index.html
+        dest: /opt/blog/index.html
