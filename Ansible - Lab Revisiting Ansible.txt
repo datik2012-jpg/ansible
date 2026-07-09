@@ -1,0 +1,909 @@
+///////////////////////LAB //////////////////
+
+Install ansible on student-node.
+
+check the Os version to find the correct command to install the ansible:
+
+[bob@student-node ~]$ cat /etc/os-release
+NAME="CentOS Stream"
+VERSION="9"
+ID="centos"
+ID_LIKE="rhel fedora"
+VERSION_ID="9"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="CentOS Stream 9"
+ANSI_COLOR="0;31"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:centos:centos:9"
+HOME_URL="https://centos.org/"
+BUG_REPORT_URL="https://issues.redhat.com/"
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux 9"
+REDHAT_SUPPORT_PRODUCT_VERSION="CentOS Stream"
+[bob@student-node ~]$ 
+
+so we need CentOs ansible install command:
+
+> sudo dnf install ansible -y
+
+Done  + validate installed ansible version:
+
+[bob@student-node ~]$ ansible --version
+ansible [core 2.14.18]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+
+
+
+Create an Ansible configuration file under /home/bob/playbooks directory and disable the SSH host key checking for Ansible.
+
+
+before let's look the default config file at : /etc/ansible/ansible.cfg
+and check there the varibale for SSH host key disabling:
+
+get next output:
+
+[bob@student-node playbooks]$ cat /etc/ansible/ansible.cfg
+# Since Ansible 2.12 (core):
+# To generate an example config file (a "disabled" one with all default settings, commented out):
+#               $ ansible-config init --disabled > ansible.cfg
+
+
+so i DO want to generate the file 
+
+ansible-config init --disabled > /home/bob/playbooks/ansible.cfg
+
+created the config file in my location:
+
+[bob@student-node playbooks]$ ansible-config init --disabled > /home/bob/playbooks/ansible.cfg
+[bob@student-node playbooks]$ ls
+ansible.cfg
+
+
+check the currernt value of the ssh host key in the config file:
+
+[bob@student-node playbooks]$ ansible-config dump | grep -i host_key
+HOST_KEY_CHECKING(default) = True
+PARAMIKO_HOST_KEY_AUTO_ADD(default) = False
+
+sed to replase True to False 
+
+sudo sed -i 's/^#\?host_key_checking.*/host_key_checking = False/' ansible.cfg
+
+run and validate:
+
+[bob@student-node playbooks]$ sudo sed -i 's/^#\?host_key_checking.*/host_key_checking = False/' ansible.cfg
+[bob@student-node playbooks]$ ansible-config dump | grep -i host_key
+HOST_KEY_CHECKING(default) = True
+
+so i modified manually:with vim ansible.cfg
+
+# (boolean) Set this to "False" if you want to avoid host key checking by the underlying tools Ansible uses to connect to the host
+;host_key_checking=False
+
+created manually new file:
+[bob@student-node playbooks]$ cat ansible.cfg
+[defaults]
+HOST_KEY_CHECKING(default) = False
+
+just cause validation is failing!!!!
+
+
+Create an Ansible inventory file called inventory for host node01 under /home/bob/playbooks directory.
+
+
+
+Below are the details of node01:
+
+
+Hostname: node01
+
+User: bob
+
+Password: caleston123
+
+created:
+
+[bob@student-node playbooks]$ cat inventory
+
+node01 ansible_hostname=node01 ansible_user=bob ansible_password=caleston123
+
+good!!!
+
+
+We already have an inventory file /home/bob/playbooks/inventory. Add an alias for node02 host in it. Find the below details for the node02 host:
+
+
+
+Hostname: node02
+
+User: bob
+
+Password: caleston123
+
+added:
+
+[bob@student-node playbooks]$ cat inventory
+
+node01 ansible_hostname=node01 ansible_user=bob ansible_password=caleston123
+node02 ansible_hostname=node02 ansible_user=bob ansible_password=caleston123
+
+
+
+Create a group called web_nodes in /home/bob/playbooks/inventory inventory file, further add node01 and node02 as a member of this group.
+
+created:
+
+[bob@student-node playbooks]$ cat inventory
+
+node01 ansible_hostname=node01 ansible_user=bob ansible_password=caleston123
+node02 ansible_hostname=node02 ansible_user=bob ansible_password=caleston123
+
+[web_nodes]
+node01
+
+Represent the below given data in Ansible Inventory format in /home/bob/playbooks/inventory_table file
+
+
+
+Server Alias	Server Name	OS	User	Password
+sql_db1	sql01.xyz.com	Linux	root	Lin$Pass
+sql_db2	sql02.xyz.com	Linux	root	Lin$Pass
+web_node1	web01.xyz.com	Win	administrator	Win$Pass
+web_node2	web02.xyz.com	Win	administrator	Win$Pass
+web_node3	web03.xyz.com	Win	administrator	Win$Pass
+
+
+Group	Members
+db_nodes	sql_db1, sql_db2
+web_nodes	web_node1, web_node2, web_node3
+boston_nodes	sql_db1, web_node1
+dallas_nodes	sql_db2, web_node2, web_node3
+us_nodes	boston_nodes, dallas_nodes
+node02
+
+created inventory_table:
+
+[bob@student-node playbooks]$ cat inventory_table 
+#Web Servers
+web_node1 ansible_host=web01.xyz.com ansible_connection=winrm ansible_user=administrator ansible_password=Win$Pass
+web_node2 ansible_host=web02.xyz.com ansible_connection=winrm ansible_user=administrator ansible_password=Win$Pass
+web_node3 ansible_host=web03.xyz.com ansible_connection=winrm ansible_user=administrator ansible_password=Win$Pass
+
+#DB Servers
+sql_db1 ansible_host=sql01.xyz.com ansible_connection=ssh ansible_user=root ansible_ssh_pass=Lin$Pass
+sql_db2 ansible_host=sql02.xyz.com ansible_connection=ssh ansible_user=root ansible_ssh_pass=Lin$Pass
+
+#Groups
+[db_nodes]
+sql_db1
+sql_db2
+
+[web_nodes]
+web_node1
+web_node2
+web_node3
+
+[boston_nodes]
+sql_db1
+web_node1
+
+[dallas_nodes]
+sql_db2
+web_node2
+web_node3
+
+[us_nodes:children]
+boston_nodes
+dallas_nodes
+
+
+Create a playbook called /home/bob/playbooks/command.yml which should execute the command to display the contents of file /etc/resolv.conf on localhost. Make sure to use command module to complete this task.
+
+created:
+
+---
+- name: Execute a command on localhost
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Execute a command
+      command: cat /etc/resolv.conf
+
+ connection: local - say to ansible DO NOT USE default ssh coonection when you run local
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook command.yml OR ansible-playbook -i localhost, command.yml -vv
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
+
+PLAY [Execute a command on localhost] *********************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Execute a command] **********************************************************************************************************************************************************
+changed: [localhost]
+
+
+reate a playbook callled perm.yml under /home/bob/playbooks directory on student-node, an inventory file called inventory is already present under /home/bob/playbooks directory itself. Using this playbook perform below mentioned tasks:
+
+
+
+1. Create an empty file called blog.txt under /opt/news/ directory on node01. Change its group owner to sam .
+
+
+2. Create an empty file called story.txt under /opt/news/ directory on node02. Change its user owner to sam .
+
+created perm.yml:
+
+[bob@student-node playbooks]$ cat perm.yml
+- name: Playbook for node01
+  hosts: node01
+  tasks:
+    - name: Task for node01
+      file:
+        path: /opt/news/blog.txt
+        state: touch
+        group: sam
+
+- name: Playbook for node02
+  hosts: node02
+  tasks:
+    - name: Task for node02
+      file:
+        path: /opt/news/story.txt
+        state: touch
+        group: sam
+
+failed due permissions on node01 !!! added become yes!!
+
+
+[bob@student-node playbooks]$ cat perm.yml
+- name: Playbook for node01
+  hosts: node01
+  tasks:
+    - name: Task for node01
+      become: yes
+      file:
+        path: /opt/news/blog.txt
+        state: touch
+        group: sam
+
+- name: Playbook for node02
+  hosts: node02
+  tasks:
+    - name: Task for node02
+      become: yes
+      file:
+        path: /opt/news/story.txt
+        state: touch
+
+run again:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory perm.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: perm.yml ****************************************************************************************************************************************************************
+2 plays in perm.yml
+
+PLAY [Playbook for node01] ********************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/perm.yml:1
+ok: [node01]
+
+TASK [Task for node01] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/perm.yml:4
+changed: [node01] => {"changed": true, "dest": "/opt/news/blog.txt", "gid": 1001, "group": "sam", "mode": "0644", "owner": "root", "size": 0, "state": "file", "uid": 0}
+
+PLAY [Playbook for node02] ********************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/perm.yml:11
+ok: [node02]
+
+TASK [Task for node02] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/perm.yml:14
+changed: [node02] => {"changed": true, "dest": "/opt/news/story.txt", "gid": 1001, "group": "sam", "mode": "0644", "owner": "root", "size": 0, "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+Create a playbook called file.yml under /home/bob/playbooks/ directory and use this playbook to create a file called /opt/file.txt on node01 host. The contents of the file must be This file is created by Ansible!
+
+
+
+created:
+
+[bob@student-node playbooks]$ cat file.yaml 
+- name: Playbook to create a file in the node01
+  hosts: node01
+  become: yes
+  tasks:
+    - name: Create file with text
+      lineinfile:
+        path: /opt/file.txt
+        line: "This file is created by Ansible!"
+        create: yes  
+
+
+run:
+
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory file.yaml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: file.yaml ***************************************************************************************************************************************************************
+1 plays in file.yaml
+
+PLAY [Playbook to create a file in the node01] ************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/file.yaml:1
+ok: [node01]
+
+TASK [Create file with text] ******************************************************************************************************************************************************
+task path: /home/bob/playbooks/file.yaml:5
+changed: [node01] => {"backup": "", "changed": true, "msg": "line added"}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+anothe option to create file.yml with this conent:
+
+---
+- hosts: node01
+  become: true
+  tasks:
+    - name: create a file
+      copy:
+        dest: /opt/file.txt
+        content: "This file is created by Ansible!"
+
+
+
+Create a playbook called copy.yml under /home/bob/playbooks/ directory to copy /usr/src/blog/index.html file to both nodes i.e node01 and node02 at location /opt/blog.
+
+
+created:
+
+[bob@student-node playbooks]$ cat copy.yml
+- name: Copy files to both nodes
+  hosts: node01,node02
+  become: yes
+  tasks:  
+    - name: Copy file
+      copy:
+        src: /usr/src/blog/index.html
+        dest: /opt/blog/index.html
+        remote_src: yes 
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory copy.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: copy.yml ****************************************************************************************************************************************************************
+1 plays in copy.yml
+
+PLAY [Copy files to both nodes] ***************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/copy.yml:1
+ok: [node01]
+ok: [node02]
+
+TASK [Copy file] ******************************************************************************************************************************************************************
+task path: /home/bob/playbooks/copy.yml:5
+changed: [node01] => {"changed": true, "checksum": "ed3e35a5e4f6e9332330109406fede4e6bc78bcd", "dest": "/opt/blog/index.html", "gid": 0, "group": "root", "md5sum": "5049605dbba1e0e8be4a750bea22264d", "mode": "0644", "owner": "root", "size": 10, "src": "/usr/src/blog/index.html", "state": "file", "uid": 0}
+changed: [node02] => {"changed": true, "checksum": "ed3e35a5e4f6e9332330109406fede4e6bc78bcd", "dest": "/opt/blog/index.html", "gid": 0, "group": "root", "md5sum": "5049605dbba1e0e8be4a750bea22264d", "mode": "0644", "owner": "root", "size": 10, "src": "/usr/src/blog/index.html", "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+Write a playbook called replace.yml under /home/bob/playbooks/ directory on student-node host, an inventory file called inventory is already present under /home/bob/playbooks directory. Perform below given tasks using this playbook:
+
+
+
+1. We have a file called /opt/music/blog.txt on node01. Using Ansible replace module replace string Kodekloud with Ansible in that file.
+
+
+2. We have a file called /opt/music/story.txt on node02. Using Ansible replace module replace the string Ansible with Kodekloud in that file.
+
+created replace.yml:
+
+[bob@student-node playbooks]$ cat replace.yml
+- name: Replace playbook for node01
+  hosts: node01
+  become: yes
+  tasks:
+    - name: Node01 task
+      replace:
+        path: /opt/music/blog.txt
+        regexp: 'Kodekloud'
+        replace: 'Ansible' 
+
+- name: Replace playbook for node02
+  hosts: node02
+  become: yes
+  tasks:
+    - name: Node02 task
+      replace:
+        path: /opt/music/story.txt
+        regexp: 'Ansible'
+        replace: 'Kodekloud' 
+
+run the yml:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory replace.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: replace.yml *************************************************************************************************************************************************************
+2 plays in replace.yml
+
+PLAY [Replace playbook for node01] ************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/replace.yml:1
+ok: [node01]
+
+TASK [Node01 task] ****************************************************************************************************************************************************************
+task path: /home/bob/playbooks/replace.yml:5
+changed: [node01] => {"changed": true, "msg": "1 replacements made", "rc": 0}
+
+PLAY [Replace playbook for node02] ************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/replace.yml:11
+ok: [node02]
+
+TASK [Node02 task] ****************************************************************************************************************************************************************
+task path: /home/bob/playbooks/replace.yml:15
+changed: [node02] => {"changed": true, "msg": "1 replacements made", "rc": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node02                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
+
+The playbook /home/bob/playbooks/banana.yml has a variable defined called fruit. There are two tasks written in this playbook to print a text.
+
+
+
+Use the when conditional to print I am a Banana if the value of fruit is banana otherwise it should print I am not a Banana.
+
+
+cat banana:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/banana.yml
+---
+- name: 'Am I a Banana or not?'
+  hosts: localhost
+  connection: local
+  vars:
+    fruit: banana
+  tasks:
+    #- command: 'echo "I am a Banana"'
+    
+    
+   # - command: 'echo "I am not a Banana"'
+
+
+created:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/banana.yml
+---
+- name: 'Am I a Banana or not?'
+  hosts: localhost
+  connection: local
+  vars:
+    fruit: banana
+  tasks:
+    - command: 'echo "I am a Banana"'
+      when: fruit == 'banana'
+    
+    - command: 'echo "I am not a Banana"'
+      when: fruit != 'banana'
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory banana.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: banana.yml **************************************************************************************************************************************************************
+1 plays in banana.yml
+
+PLAY [Am I a Banana or not?] ******************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/banana.yml:2
+ok: [localhost]
+
+TASK [command] ********************************************************************************************************************************************************************
+task path: /home/bob/playbooks/banana.yml:8
+changed: [localhost] => {"changed": true, "cmd": ["echo", "I am a Banana"], "delta": "0:00:00.071217", "end": "2026-07-08 08:46:17.596352", "msg": "", "rc": 0, "start": "2026-07-08 08:46:17.525135", "stderr": "", "stderr_lines": [], "stdout": "I am a Banana", "stdout_lines": ["I am a Banana"]}
+
+TASK [command] ********************************************************************************************************************************************************************
+task path: /home/bob/playbooks/banana.yml:11
+skipping: [localhost] => {"changed": false, "skip_reason": "Conditional result was False"}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0 
+
+
+The playbook /home/bob/playbooks/fruits.yml currently runs an echo command to print a fruit name. Add a loop directive (i.e with_items) in the task to print all fruits defined under the fruits variable.
+
+current fruits file:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/fruits.yml 
+---
+- name: 'Print fruits'
+  hosts: localhost
+  connection: local
+  vars:
+    fruits:
+      - Apple
+      - Banana
+      - Grapes
+      - Orange
+  tasks:
+    - command: 'echo Apple'
+
+updated to:
+
+[bob@student-node playbooks]$ cat /home/bob/playbooks/fruits.yml 
+---
+- name: 'Print fruits'
+  hosts: localhost
+  connection: local
+  vars:
+    fruits:
+      - Apple
+      - Banana
+      - Grapes
+      - Orange
+  tasks:
+    - command: "echo {{ item }}"
+      with_items: "{{ fruits }}"
+
+run:
+
+[bob@student-node playbooks]$ ansible-playbook -i inventory fruits.yml -vv
+ansible-playbook [core 2.14.18]
+  config file = /home/bob/playbooks/ansible.cfg
+  configured module search path = ['/home/bob/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/bob/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/bob/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: fruits.yml **************************************************************************************************************************************************************
+1 plays in fruits.yml
+
+PLAY [Print fruits] ***************************************************************************************************************************************************************
+
+TASK [Gathering Facts] ************************************************************************************************************************************************************
+task path: /home/bob/playbooks/fruits.yml:2
+ok: [localhost]
+
+TASK [command] ********************************************************************************************************************************************************************
+task path: /home/bob/playbooks/fruits.yml:12
+changed: [localhost] => (item=Apple) => {"ansible_loop_var": "item", "changed": true, "cmd": ["echo", "Apple"], "delta": "0:00:00.006088", "end": "2026-07-08 08:50:31.623001", "item": "Apple", "msg": "", "rc": 0, "start": "2026-07-08 08:50:31.616913", "stderr": "", "stderr_lines": [], "stdout": "Apple", "stdout_lines": ["Apple"]}
+changed: [localhost] => (item=Banana) => {"ansible_loop_var": "item", "changed": true, "cmd": ["echo", "Banana"], "delta": "0:00:00.006465", "end": "2026-07-08 08:50:32.511929", "item": "Banana", "msg": "", "rc": 0, "start": "2026-07-08 08:50:32.505464", "stderr": "", "stderr_lines": [], "stdout": "Banana", "stdout_lines": ["Banana"]}
+changed: [localhost] => (item=Grapes) => {"ansible_loop_var": "item", "changed": true, "cmd": ["echo", "Grapes"], "delta": "0:00:00.005697", "end": "2026-07-08 08:50:33.421036", "item": "Grapes", "msg": "", "rc": 0, "start": "2026-07-08 08:50:33.415339", "stderr": "", "stderr_lines": [], "stdout": "Grapes", "stdout_lines": ["Grapes"]}
+changed: [localhost] => (item=Orange) => {"ansible_loop_var": "item", "changed": true, "cmd": ["echo", "Orange"], "delta": "0:00:00.005526", "end": "2026-07-08 08:50:34.304859", "item": "Orange", "msg": "", "rc": 0, "start": "2026-07-08 08:50:34.299333", "stderr": "", "stderr_lines": [], "stdout": "Orange", "stdout_lines": ["Orange"]}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+Create a playbook called package.yml under /home/bob/playbooks/ directory to install vim-enhanced package on student-node.
+
+created:
+
+---
+- name: 'Install the required package'
+  hosts: localhost
+  become: yes
+  connection: local
+  tasks:
+    - yum: 
+        name: vim-enhanced
+        state: present
+
+run: 
+cd /home/bob/playbooks
+ansible-playbook -i localhost, package.yml
+
+
+
+There is a playbook /home/bob/playbooks/copy_file.yml on student-node. It is supposed to perform below tasks but needs some modification, modify this playbook to add some conditions so that below tasks can be performed:
+
+
+
+1. Copy blog.txt file present under /usr/src/condition directory on student-node to node01 under /opt/condition directory. Its user and group owner must be bob and its permissions must be 0640.
+
+
+2. Copy story.txt file present under /usr/src/condition directory on student-node to node02 under /opt/condition directory. Its user and group owner must be sam and its permissions must be 0400.
+
+
+did:
+
+
+[bob@student-node playbooks]$ cat copy_file.yml 
+---
+- name: Playbook for node01
+  hosts: node01
+  become: true
+  tasks:
+    - name: Copy to node01 from localhost
+      copy:
+        src: /usr/src/condition/blog.txt
+        dest: /opt/condition/blog.txt
+        owner: bob
+        group: bob
+        mode: '0640'
+
+- name: Playbook for node02
+  hosts: node02
+  become: true
+  tasks:
+    - name: Copy to node02 from localhost
+      copy:
+        src: /usr/src/condition/story.txt
+        dest: /opt/condition/story.txt
+        owner: sam
+        group: sam
+        mode: '0400'
+
+or:
+
+
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Copy file with owner and permissions on node01
+      copy:
+        src: /usr/src/condition/blog.txt
+        dest: /opt/condition/blog.txt
+        owner: bob
+        group: bob
+        mode: "0640"
+      when: inventory_hostname == "node01"
+
+    - name: Copy file with owner and permissions on node02
+      copy:
+        src: /usr/src/condition/story.txt
+        dest: /opt/condition/story.txt
+        owner: sam
+        group: sam
+        mode: "0400"
+      when: inventory_hostname == "node02"
+
+
+We already have an inventory file called inventory under /home/bob/playbooks directory on student-node. Write a playbook called lineinfile.yml under /home/bob/playbooks directory. Perform below given tasks using this playbook :
+
+
+
+On node01, a file called /var/www/html/index.html is available. It already has some content. Using Ansible lineinfile module add the below given content in it:
+
+Welcome to KodeKloud Labs!
+
+
+Also make sure to preserve the existing content and this new line must be added at the top of the file.
+
+[bob@student-node playbooks]$ cat lineinfile.yaml
+- name: Playbook lineinline
+  hosts: node01
+  become: yes
+  tasks:
+    - name: Add a line to the file
+      lineinfile:  
+        path: /var/www/html/index.html
+        line: "Welcome to KodeKloud Labs!"
+        create: yes 
+
+
+
+a. On student-node create an Ansible playbook called service.yml under /home/bob/playbooks/ directory. Further configure it to install vsftpd package on both nodes i.e node01 and node02.
+
+
+b. The playbook must start the vsftpd service on both nodes.
+
+
+c. The inventory /home/bob/playbooks/inventory is already there on student-node.
+
+
+done:
+
+- name: Start service yaml playbook
+  hosts: node01,node02
+  become: yes
+  tasks:
+    - name: Start service
+      service:
+        name: vsftpd
+        state: started
+
+
+Create a playbook called archive.yml under /home/bob/playbooks directory on student-node, an inventory file called inventory is already placed under /home/bob/playbooks directory`. Perform below task using this playbook:
+
+
+
+Create an archive of /usr/src/ecommerce/ directory present on each node ie. node01 and node02. The archive name must be demo.tar.gz (make sure that archive format is tar.gz) and save it under /opt/ecommerce/ directory on each node itself.
+
+- name: Archive playbook
+  hosts: node01,node02
+  become: yes
+  tasks:
+    - name: Archive ecommerce
+      archive:
+        path: /usr/src/ecommerce/
+        dest: /usr/src/ecommerce/demo.tar.gz
+
+
+Using Ansible galaxy, install an Ansible role called geerlingguy.nodejs under /home/bob/playbooks/roles directory.
+
+[bob@student-node roles]$ ansible-galaxy install geerlingguy.nodejs
+Starting galaxy role install process
+- downloading role 'nodejs', owned by geerlingguy
+- downloading role from https://github.com/geerlingguy/ansible-role-nodejs/archive/7.1.0.tar.gz
+- extracting geerlingguy.nodejs to /home/bob/.ansible/roles/geerlingguy.nodejs
+- geerlingguy.nodejs (7.1.0) was installed successfully
+
+
+
+Create an Ansible role called package under /home/bob/playbooks/roles directory on student-node. It should install a package called nginx and should start its service as well.
+
+
+
+Further consume this role in /home/bob/playbooks/role.yml playbook so that this role can be applied on node01
+
+
+run galaxy like a PRO it will create a ROLE project:
+
+[bob@student-node roles]$ ansible-galaxy init nginx
+- Role nginx was created successfully
+
+now:
+
+What file you must edit
+The main logic of your role goes in:
+
+Code
+nginx/tasks/main.yml
+Put your Nginx installation tasks there:
+
+yaml
+- name: Install nginx
+  package:
+    name: nginx
+    state: present
+
+- name: Start and enable nginx
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+cat:
+
+
+[bob@student-node tasks]$ cat main.yml
+---
+# tasks file for nginx
+
+- name: Install nginx
+  package:
+    name: nginx
+    state: present
+
+- name: Start and enable nginx
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+
+How to call the role from a playbook
+Now create a playbook outside the role folder, for example:
+
+Code
+~/playbooks/install-nginx.yml
+Put this inside:
+
+yaml
+- name: Install nginx using role
+  hosts: node01,node02
+  become: yes
+  roles:
+    - nginx               - here we uset the role !!!
+
+
+How to run the playbook
+bash
+ansible-playbook install-nginx.yml
+
+
+
+
