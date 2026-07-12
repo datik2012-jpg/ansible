@@ -1,0 +1,1987 @@
+This playbook automates adding a firewall rule using the Firewalld module in Ansible.
+
+---
+- name: Add Firewalld rule
+  hosts: all
+  tasks:
+    - firewalld:
+        port: 8080/tcp
+        service: http
+        source: 192.0.0.0/24
+        zone: public
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+
+
+
+ey	Meaning
+name	Describes the playbook’s purpose — here, adding a Firewalld rule.
+hosts: all	Applies the task to all hosts defined in your inventory.
+tasks	Lists the actions Ansible will perform.
+firewalld:	Uses the built-in Ansible module to manage Firewalld rules.
+port: 8080/tcp	Opens TCP port 8080.
+service: http	Associates the rule with the HTTP service.
+source: 192.0.0.0/24	Restricts access to the specified IP range.
+zone: public	Applies the rule to the “public” zone in Firewalld.
+state: enabled	Ensures the rule is active.
+permanent: yes	Makes the rule persist after reboot.
+immediate: yes	Applies the rule instantly without needing a reload.
+
+
+here saved permament: yes:
+
+When you set permanent: yes, Ansible tells Firewalld to store the rule in its persistent configuration files, not just in memory.
+
+Location:  
+/etc/firewalld/zones/  
+Each zone (like public.xml) contains XML definitions of ports, services, and sources.
+
+Mechanism:  
+Firewalld maintains two configurations:
+
+When permanent: yes and immediate: yes are both set, Ansible applies the rule immediately to the runtime configuration and writes it to the permanent XML file so it survives reboot.
+
+
+Platform	Persistence Mechanism	File/Registry Path
+Linux (Firewalld)	XML zone files	/etc/firewalld/zones/
+Windows	Registry entries	HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\
+
+
+/////////////////////////////////////////////////////////////////
+When executed:
+
+Ansible connects to each host.
+
+It runs the mkfs.ext4 command on /dev/vg1/lvol1 with the -cc option.
+
+The result is a freshly formatted ext4 filesystem, ready for mounting.
+
+
+
+- hosts: all
+  tasks:
+    - name: Create Filesystem
+      filesystem:
+        fstype: ext4
+        dev: /dev/vg1/lvol1
+        opts: -cc
+
+
+
+Key	Meaning
+hosts: all	Runs this task on all hosts in your inventory.
+tasks:	Defines the actions Ansible will perform.
+name: Create Filesystem	Descriptive label for the task.
+filesystem:	Uses Ansible’s built-in filesystem module to create or manage filesystems.
+fstype: ext4	Specifies the filesystem type — here, ext4, a common Linux filesystem.
+dev: /dev/vg1/lvol1	The target device — in this case, a logical volume under volume group vg1.
+opts: -cc	Passes extra options to the underlying mkfs command. The -cc flag performs a bad block check before creating the filesystem.
+
+
+Mount the file system:
+
+
+- name: Mount Filesystem
+  mount:
+    fstype: ext4
+    src: /dev/vg1/lvol1
+    path: /opt/app
+    state: mounted
+
+
+Key	Meaning
+name: Mount Filesystem	Descriptive label for the task.
+mount:	Uses Ansible’s mount module to manage filesystem mounts.
+fstype: ext4	Specifies the filesystem type — here, ext4.
+src: /dev/vg1/lvol1	The source device to mount (a logical volume).
+path: /opt/app	The directory where the filesystem will be mounted.
+state: mounted	Ensures the filesystem is mounted and added to /etc/fstab for persistence.
+
+
+Ansible playbook task that creates a directory on all managed hosts 
+
+---
+- hosts: all
+  tasks:
+    - name: Create Directory
+      file:
+        path: /opt/app/web
+        state: directory
+
+
+
+Key	Meaning
+hosts: all	Runs this task on all hosts listed in your inventory.
+tasks:	Defines the actions Ansible will perform.
+name: Create Directory	Descriptive label for the task.
+file:	Uses Ansible’s file module, which manages files, directories, and symlinks.
+path: /opt/app/web	The directory path to create.
+state: directory	Ensures that the path exists as a directory (creates it if missing).
+
+
+ Ansible playbook task that creates a file and sets its ownership and permissions
+
+- name: Create File
+  file:
+    path: /opt/app/web/index.html
+    state: touch
+    owner: app-owner
+    group: app-owner
+    mode: '0644'
+
+
+
+name: Create File	Descriptive label for the task.
+file:	Uses Ansible’s file module to manage files and directories.
+path: /opt/app/web/index.html	The file’s location on the target system.
+state: touch	Ensures the file exists — creates it if missing, similar to the Linux touch command.
+owner: app-owner	Sets the file’s owner to app-owner.
+group: app-owner	Assigns the file’s group ownership.
+mode: '0644'	Sets file permissions: owner can read/write, group and others can read only.
+
+
+
+Archive:
+
+---
+- hosts: all
+  tasks:
+    - name: Compress a folder
+      archive:
+        path: /opt/app/web
+        dest: /tmp/web.gz
+        format: zip|tar|bz2|xz|gz
+
+
+
+hosts: all	Runs this task on all hosts in your inventory.
+tasks:	Defines the actions Ansible will perform.
+name: Compress a folder	Descriptive label for the task.
+archive:	Uses Ansible’s archive module to compress files or directories.
+path: /opt/app/web	The source directory to compress.
+dest: /tmp/web.gz	The destination path for the compressed file.
+format:	Specifies the compression format — you can choose one of: zip, tar, bz2, xz, or gz.
+
+
+This YAML snippet is an Ansible playbook that performs two complementary tasks — compressing and uncompressing a folder. It’s a great example of how Ansible automates file packaging and restoration across multiple hosts.
+
+- hosts: all
+  tasks:
+    - name: Compress a folder
+      archive:
+        path: /opt/app/web
+        dest: /tmp/web.gz
+        format: zip|tar|bz2|xz|gz
+
+    - name: Uncompress a folder
+      unarchive:
+        src: /tmp/web.gz
+        dest: /opt/app/web
+        remote_src: yes
+
+
+
+In your playbook, both the archive and unarchive modules run on each target host, not on your local control machine (unless you explicitly target localhost).
+
+So:
+
+When you run the playbook with hosts: all, Ansible connects to each remote server via SSH.
+
+The compression (archive) happens on that remote server — the folder /opt/app/web is compressed locally on that host.
+
+The resulting file /tmp/web.gz is created on that same remote host.
+
+Another example:
+
+compress on your local machine (localhost) and then copy the archive to multiple remote hosts using Ansible.
+
+
+Step 1 — Compress on localhost
+Run a play that targets only your control node:
+
+yaml
+- hosts: localhost
+  tasks:
+    - name: Compress folder locally
+      archive:
+        path: /opt/app/web
+        dest: /tmp/web.tar.gz
+        format: gz
+This creates /tmp/web.tar.gz on your local machine.
+
+✅ Step 2 — Copy the archive to multiple hosts
+Now send the archive to all remote servers:
+
+yaml
+- hosts: all
+  tasks:
+    - name: Copy archive to remote hosts
+      copy:
+        src: /tmp/web.tar.gz
+        dest: /tmp/web.tar.gz
+This transfers the file from localhost → each remote host.
+
+✅ Step 3 — Uncompress on each remote host (optional)
+If you want to extract it on each server:
+
+yaml
+- hosts: all
+  tasks:
+    - name: Uncompress archive on remote hosts
+      unarchive:
+        src: /tmp/web.tar.gz
+        dest: /opt/app/web
+        remote_src: yes
+remote_src: yes tells Ansible the file already exists on the remote host, so it won’t try to copy it again.
+
+
+ Ansible playbook task that creates a scheduled cron job
+
+---
+- hosts: all
+  tasks:
+    - name: Create a scheduled task
+      cron:
+        name: Run daily health report
+        job: sh /opt/scripts/health.sh
+        month: 2
+        day: 19
+        hour: 8
+        minute: 10
+
+
+Ansible playbook that automates user and group creation across all hosts — a common system administration task.
+
+---
+- hosts: all
+  tasks:
+    - name: Create a user Maria
+      user:
+        name: maria
+        uid: 1001
+        group: developers
+        shell: /bin/bash
+
+    - name: Create a group
+      group:
+        name: developers
+
+
+check existing UID before creation : Check existing UIDs before assigning manually:
+
+bash
+getent passwd | awk -F: '{print $1, $3}'
+
+Example safer playbook
+yaml
+- name: Create user Maria safely
+  user:
+    name: maria
+    group: developers
+    shell: /bin/bash
+    state: present
+This way, Ansible creates Maria only if she doesn’t exist, and the system assigns her a free UID automatically.
+
+
+Ansible playbook task that configures SSH authorized keys
+
+This section contains the public SSH key that you want to add to the user’s ~/.ssh/authorized_keys file.
+
+
+---
+- hosts: all
+  tasks:
+    - name: Configure ssh keys
+      authorized_keys:
+        user: maria
+        state: present
+        key: |
+          ssh-rsa AAAAB3NzaC1yc2EAAAAADAQABAAA...
+          BAQC4WKn4K2G3iWg9HdCGo34gh+……root@97a1b9c3a
+
+
+This section contains the public SSH key that you want to add to the user’s ~/.ssh/authorized_keys file.
+
+The | symbol means “multiline string” in YAML — it lets you paste the entire key exactly as it appears.
+
+The key itself (starting with ssh-rsa) is already generated elsewhere — typically using ssh-keygen on your local machine or another trusted system.
+
+Ansible doesn’t generate the key here; it simply copies it to the remote host.
+
+Key	Meaning
+hosts: all	Runs this task on all hosts in your inventory.
+authorized_keys:	Uses Ansible’s authorized_keys module to manage SSH public keys for users.
+user: maria	Specifies the user whose ~/.ssh/authorized_keys file will be modified.
+state: present	Ensures the key is added (creates the file if missing).
+key:	The actual SSH public key to insert. The `	` allows multiline input.
+
+
+Security Model:
+
+
+Option 1 — One public key for all servers
+This is the simplest and most common setup in automation.
+
+How it works
+You generate one key pair (private + public) on your workstation:
+
+bash
+ssh-keygen -t rsa -b 4096
+Then you distribute the same public key to all servers:
+
+yaml
+authorized_keys:
+  user: maria
+  key: |
+    ssh-rsa AAAA...
+When this is good
+You want one identity to access all servers
+
+You want easy automation (CI/CD, Ansible control node, Jenkins, GitLab runners)
+
+You want simple key rotation
+
+You trust the environment and access is controlled
+
+Security trade‑off
+If the private key is compromised, the attacker can access all servers.
+
+
+
+Option 2 — A different public key per server
+This is more secure but more work.
+
+How it works
+You generate multiple key pairs, one per server or per user:
+
+Code
+id_rsa_server1.pub
+id_rsa_server2.pub
+id_rsa_server3.pub
+Then you assign each key to the correct host using inventory variables:
+
+yaml
+authorized_keys:
+  user: maria
+  key: "{{ hostvars[inventory_hostname].ssh_key }}"
+When this is good
+You want per‑server isolation
+
+You want per‑user isolation
+
+You want zero trust between servers
+
+You want fine‑grained revocation (remove one key without affecting others)
+
+Security trade‑off
+More keys = more complexity.
+
+🧠 Which one should YOU use?
+Most organizations use:
+
+One key per user → installed on all servers
+
+Separate keys for automation (Ansible, CI/CD)
+
+Separate keys for privileged accounts (root, admin)
+
+This gives a balance of security and simplicity.
+
+////////////////////////////////////LAB -Modules - Packages //////////////
+
+Create a playbook httpd.yml under ~/playbooks/ to install httpd package on web1 node using Ansible’s yum module.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+[thor@ansible-controller playbooks]$ cat httpd.yaml
+- name: Install httpd playbook
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install htppd
+      yum:
+        name: httpd
+        state: present
+
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory httpd.yaml -vv
+
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: httpd.yaml *********************************************************************************************************************
+1 plays in httpd.yaml
+
+PLAY [Install httpd playbook] ************************************************************************************************************
+
+TASK [Install htppd] *********************************************************************************************************************
+task path: /home/thor/playbooks/httpd.yaml:5
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed: httpd-core-2.4.62-14.el9.x86_64", "Installed: mod_lua-2.4.62-14.el9.x86_64", "Installed: mailcap-2.1.49-5.el9.noarch", "Installed: centos-logos-httpd-90.9-1.el9.noarch", "Installed: httpd-filesystem-2.4.62-14.el9.noarch", "Installed: libbrotli-1.0.9-9.el9.x86_64", "Installed: apr-1.7.0-12.el9.x86_64", "Installed: apr-util-1.6.1-23.el9.x86_64", "Installed: apr-util-bdb-1.6.1-23.el9.x86_64", "Installed: apr-util-openssl-1.6.1-23.el9.x86_64", "Installed: httpd-tools-2.4.62-14.el9.x86_64", "Installed: mod_http2-2.0.26-6.el9.x86_64", "Installed: httpd-2.4.62-14.el9.x86_64"]}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+We have an rpm available for wget package on URL https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/wget-1.21.1-8.el9.x86_64.rpm. Create a playbook with name wget.yml under ~/playbooks to install that rpm on web1 node using yum module.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+[thor@ansible-controller playbooks]$ cat wget.yml
+- name: Install rpm playbook
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install wget from URL
+      yum:
+        name: https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/wget-1.21.1-8.el9.x86_64.rpm
+        state: present
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory wget.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: wget.yml ***********************************************************************************************************************
+1 plays in wget.yml
+
+PLAY [Install rpm playbook] **************************************************************************************************************
+
+TASK [Install wget from URL] *************************************************************************************************************
+task path: /home/thor/playbooks/wget.yml:5
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed /root/.ansible/tmp/ansible-tmp-1783843531.8697495-1015-260917212192812/wget-1.21.1-8.el9.x86_64s1nlv02h.rpm", "Installed: wget-1.21.1-8.el9.x86_64", "Installed: libpsl-0.21.1-5.el9.x86_64", "Installed: publicsuffix-list-dafsa-20210518-3.el9.noarch"]}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
+There is a playbook under ~/playbooks named as unzip.yml to install unzip package on web1 node. We want to install unzip-5.52 version of this package so before running the playbook make the required changes.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+---
+- hosts: all
+  tasks:
+    - name: Install unzip package
+      yum:
+        name: unzip-5.52
+        state: present
+
+
+Our playbook - iotop.yml - to install the latest version of iotop package keeps failing. Please fix the issue so that playbook can work.
+
+
+The playbook is located under ~/playbooks directory. And the inventory file is inventory
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+lets run and inspect the issue:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory iotop.yml -vv
+
+ERROR! 'host' is not a valid attribute for a Play
+
+The error appears to be in '/home/thor/playbooks/iotop.yml': line 2, column 3, but may
+be elsewhere in the file depending on the exact syntax problem.
+
+The offending line appears to be:
+
+---
+- host: all
+  ^ here
+
+
+inspect inventory:
+
+ha!!! no all there: web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+added to invetory + fixed HOSTS in the yml:
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[all]
+web1
+
+
+yaml fixed:
+
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install iotop package
+      yum:
+        name: iotop
+        state: latest
+
+run again:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory iotop.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: iotop.yml **********************************************************************************************************************
+1 plays in iotop.yml
+
+PLAY [all] *******************************************************************************************************************************
+
+TASK [Install iotop package] *************************************************************************************************************
+task path: /home/thor/playbooks/iotop.yml:5
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed: iotop-0.6-30.el9.noarch"]}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
+We want to install some more packages on web1 node. Create a playbook ~/playbooks/multi-pkgs.yml to install the latest version of sudo package, moreover we already have vsftpd v3.0.5 installed but due to some compatibility issues we want to install vsftpd v3.0.3 so add a task in same playbook to do so.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+yml:
+
+---
+- name: Install sudo and vsftpd playbook
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install latest version of sudo
+      yum:
+        name: sudo
+        state: latest
+
+    - name: Install specific version of vsftpd
+      yum:
+        name: vsftpd-3.0.3
+        state: present
+
+
+run:
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory multi-pkgs.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: multi-pkgs.yml *****************************************************************************************************************
+1 plays in multi-pkgs.yml
+
+PLAY [Install sudo and vsftpd playbook] **************************************************************************************************
+
+TASK [Install latest version of sudo] ****************************************************************************************************
+task path: /home/thor/playbooks/multi-pkgs.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed: sudo-1.9.17p2-4.el9.x86_64"]}
+
+TASK [Install specific version of vsftpd] ************************************************************************************************
+task path: /home/thor/playbooks/multi-pkgs.yml:11
+changed: [web1] => {"ansible_facts": {"pkg_mgr": "dnf"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed: vsftpd-3.0.3-49.el9.x86_64", "Removed: vsftpd-3.0.5-6.el9.x86_64"]}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=2    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+///////////////////////LAB ////////////////////
+
+
+Create a playbook httpd.yml under ~/playbooks directory to make sure httpd service is started on web1 node. You can use ~/playbooks/inventory
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+[thor@ansible-controller playbooks]$ cat httpd.yml
+---
+
+- name: Httpd started playbok
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Started HTTPD
+      service:
+        name: httpd
+        state: started
+
+
+run: [thor@ansible-controller playbooks]$ ansible-playbook -i inventory httpd.yml -vv
+
+
+
+We have a playbook ~/playbooks/file.yml to copy a file with a welcome message under httpd server's document root on web1 node. Make changes in the playbook so that httpd server reloads after copying the file, make sure it does not restart the httpd server.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+[thor@ansible-controller playbooks]$ cat file.yml 
+---
+- hosts: web
+  gather_facts: no
+  tasks:
+    - name: Copy Apache welcome file
+      copy:
+        src: index.html
+        dest: /var/www/html/index.html
+    - name: Reload httpd
+      service:
+        name: httpd
+        state: reloaded
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory file.yml -vv
+
+We would like the httpd service on web1 node to always start automatically after the system reboots. Update the httpd.yml playbook you created earlier with the required changes.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+[thor@ansible-controller playbooks]$ cat httpd.yml
+---
+
+- name: Httpd started playbok
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Started HTTPD
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+
+
+
+We created a playbook ~/playbooks/config.yml to enable port 443 for httpd on web1 node as we want to run nginx on the default port 80 so port 80 needs to be free. Make changes in the playbook so that httpd service restarts after making these change.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+---
+- hosts: web1
+  gather_facts: no
+  tasks:
+    - name: Make changes in Apache config
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: "^Listen 80"
+        replace: "Listen 443"
+
+    - name: Restart HTTPD
+      service:
+        name: httpd
+        state: restarted
+
+
+Create a playbook ~/playbooks/nginx.yml to install nginx on web1 node and make sure nginx service is started and should always start even after the system reboots.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+[thor@ansible-controller playbooks]$ cat nginx.yml
+---
+- name: Playbook nginx
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install nginx
+      yum:
+        name: nginx
+        state: present
+
+
+    - name: Start and Enable
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory nginx.yml -vv
+
+//////////////////////////////////////////////////LAB /////////////////////////
+
+Using an Ansible playbook install firewalld on web1 node, start and enable its service as well. Name the playbook as firewall.yml and keep it under ~/playbooks.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+[thor@ansible-controller playbooks]$ cat firewall.yml
+---
+- name: Playbook firewall
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install ferewalld
+      yum:
+        name: firewalld
+        state: present
+
+    - name: Start and enable firewalld service
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+run: [thor@ansible-controller playbooks]$ ansible-playbook -i inventory firewall.yml -vv
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=2    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+We have a requirement on web1 node to white list web2 node's IP address 172.20.1.101 in firewall. Create and run a playbook ~/playbooks/whitelist.yml to do so.
+
+
+Add IP in internal zone.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+  [thor@ansible-controller playbooks]$ cat whitelist.yml
+---
+- name: White list playbook
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Allow web2 IP in internal zone
+      ansible.posix.firewalld:
+        zone: internal
+        source: 172.20.1.101
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory whitelist.yml -vv
+
+TASK [Allow web2 IP in internal zone] ****************************************************************************************************
+task path: /home/thor/playbooks/whitelist.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "Permanent and Non-Permanent(immediate) operation, Added 172.20.1.101 to zone internal"}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+We want to block 161/udp port on web1 node permanently. Make a playbook block.yml under ~/playbooks/ directory to do so.
+
+
+Use zone: block
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+[thor@ansible-controller playbooks]$ cat block.yml
+---
+- name: Blacklist IP playbook
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Block 161/udp port permanetly
+      ansible.posix.firewalld:
+        zone: block
+        port: 161/udp
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+
+run: [thor@ansible-controller playbooks]$ ansible-playbook -i inventory block.yml -vv
+
+TASK [Block 161/udp port permanetly] *****************************************************************************************************
+task path: /home/thor/playbooks/block.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "Permanent and Non-Permanent(immediate) operation, Changed port 161/udp to enabled"}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+
+On the web1 node, ensure that the internal firewalld zone allows:
+
+HTTPS service, and
+Source IP 172.20.1.2 (Ansible controller),
+so that the controller can access web1 over HTTPS.
+Make sure that rule must persist even after system reboot. You can create a playbook https.yml under ~/playbooks/ directory.
+
+
+IP address of ansible controller is 172.20.1.2.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+---
+- name: Configure firewalld for HTTPS and Controller IP
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Allow HTTPS service in internal zone
+      ansible.posix.firewalld:
+        zone: internal
+        service: https
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+    - name: Allow controller source IP in internal zone
+      ansible.posix.firewalld:
+        zone: internal
+        source: 172.20.1.2
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+
+
+run:
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory https.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: https.yml **********************************************************************************************************************
+1 plays in https.yml
+
+PLAY [Configure firewalld for HTTPS and Controller IP] ***********************************************************************************
+
+TASK [Allow HTTPS service in internal zone] **********************************************************************************************
+task path: /home/thor/playbooks/https.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "Permanent and Non-Permanent(immediate) operation, Changed service https to enabled"}
+
+TASK [Allow controller source IP in internal zone] ***************************************************************************************
+task path: /home/thor/playbooks/https.yml:14
+changed: [web1] => {"changed": true, "msg": "Permanent and Non-Permanent(immediate) operation, Added 172.20.1.2 to zone internal"}
+
+PLAY RECAP *******************************************************************************************************************************
+web1                       : ok=2    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+
+
+
+
+We have a playbook ~/playbooks/web2-config.yml, it has some existing code to change apache’s default port 80 to port 8082 as we want to run Apache on port 8082 on web2 node. Make some changes as given below before running the playbook.
+
+
+A. Add an entry in ~/playbooks/inventory for web2 node, IP address of web2 node is 172.20.1.101 and ssh password and username are same as of web1 (username = root and password = Passw0rd).
+
+B. Update web2-config.yml to install httpd before updating its port in config, also start/enable its service.
+
+C. Install firewalld package and start/enable its service.
+
+D. As now Apache will listen on port 8082 so edit the playbook to add firewall rule in public zone so that Apache can allow all incoming traffic.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+created:
+
+---
+- hosts: web2
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+     
+    - name: Change Apache port
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^(Listen)\s+80\s*$'
+        replace: "Listen 8082"
+
+    - name: Restart Apache service
+      service:
+        name: httpd
+        state: restarted
+
+    - name: Install firewalld
+      yum:
+        name: firewalld
+        state: present
+
+    - name: Start and Enable firewalld
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Allow public traffic
+      ansible.posix.firewalld:
+        zone: public
+        port: 8082/tcp
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+run:   ansible-playbook -i inventory web2-config.yml -vv
+
+///////////////////////////////////////////LAB ////////////////////
+
+
+
+Create a playbook ~/playbooks/perm.yml to create a blank file /opt/data/perm.txt with 0640 permissions on web1 node.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+created a yml:
+
+[thor@ansible-controller playbooks]$ cat perm.yml
+---
+- name: Black file createong yml
+  hosts: web1
+  become: yes
+  tasks:
+    - name:  Create file with permissions
+      file:
+        path: /opt/data/perm.txt
+        state: touch
+        mode: '0640' 
+
+run:
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory perm.yml -vv
+
+PLAY [Black file createong yml] ********************************************************************************
+
+TASK [Create file with permissions] ****************************************************************************
+changed: [web1]
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored
+
+
+
+
+Using a playbook ~/playbooks/index1.yml create /var/www/html/index.html file on web1 node with content This line was added using Ansible lineinfile module!.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+[thor@ansible-controller playbooks]$ cat index1.yml
+---
+- name: Create file with a content
+  hosts: web1
+  become: yes
+  tasks:
+    - name:  Create file with some data
+      lineinfile:
+        path: /var/www/html/index.html
+        line: 'This line was added using Ansible lineinfile module!'
+        create: yes
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory index1.yml -vv
+
+PLAY [Create file with a content] ******************************************************************************
+
+TASK [Create file with some data] ******************************************************************************
+changed: [web1]
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored
+
+
+
+We have a playbook ~/playbooks/find.yml that recursively finds files in /opt/data directory older than 2 minutes and equal or greater than 1 megabyte in size. It also copies those files under /opt directory. However it has some missing parameters so its not working as expected, take a look into it and make appropriate changes.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+current yml:
+
+[thor@ansible-controller playbooks]$ cat find.yml
+---
+- hosts: web1
+  tasks:
+    - name: Find files
+      find:
+        paths: /opt/data
+        recurse: yes
+      register: file
+
+    - name: Copy files
+      command: "cp {{ item.path }} /opt"
+      with_items: "{{ file.files }}"
+
+
+added:
+
+[thor@ansible-controller playbooks]$ cat find.yml
+---
+- hosts: web1
+  tasks:
+    - name: Find files
+      find:
+        paths: /opt/data
+        recurse: yes
+        age: 2m
+        size: 1m
+      register: file_results
+
+    - name: Copy files
+      command: "cp {{ item.path }} /opt"
+      with_items: "{{ file_results.files }}"
+
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory find.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: find.yml *********************************************************************************************
+1 plays in find.yml
+
+PLAY [web1] ****************************************************************************************************
+
+TASK [Find files] **********************************************************************************************
+task path: /home/thor/playbooks/find.yml:4
+ok: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": false, "examined": 3, "files": [{"atime": 1783813139.6512287, "ctime": 1783845188.3736148, "dev": 169, "gid": 0, "gr_name": "root", "inode": 1578107, "isblk": false, "ischr": false, "isdir": false, "isfifo": false, "isgid": false, "islnk": false, "isreg": true, "issock": false, "isuid": false, "mode": "0666", "mtime": 1724938862.0, "nlink": 1, "path": "/opt/data/xero.pdf", "pw_name": "root", "rgrp": true, "roth": true, "rusr": true, "size": 1681175, "uid": 0, "wgrp": true, "woth": true, "wusr": true, "xgrp": false, "xoth": false, "xusr": false}], "matched": 1, "msg": "All paths examined", "skipped_paths": {}}
+
+TASK [Copy files] **********************************************************************************************
+task path: /home/thor/playbooks/find.yml:12
+changed: [web1] => (item={'path': '/opt/data/xero.pdf', 'mode': '0666', 'isdir': False, 'ischr': False, 'isblk': False, 'isreg': True, 'isfifo': False, 'islnk': False, 'issock': False, 'uid': 0, 'gid': 0, 'size': 1681175, 'inode': 1578107, 'dev': 169, 'nlink': 1, 'atime': 1783813139.6512287, 'mtime': 1724938862.0, 'ctime': 1783845188.3736148, 'gr_name': 'root', 'pw_name': 'root', 'wusr': True, 'rusr': True, 'xusr': False, 'wgrp': True, 'rgrp': True, 'xgrp': False, 'woth': True, 'roth': True, 'xoth': False, 'isuid': False, 'isgid': False}) => {"ansible_loop_var": "item", "changed": true, "cmd": ["cp", "/opt/data/xero.pdf", "/opt"], "delta": "0:00:00.009782", "end": "2026-07-12 12:28:45.257351", "item": {"atime": 1783813139.6512287, "ctime": 1783845188.3736148, "dev": 169, "gid": 0, "gr_name": "root", "inode": 1578107, "isblk": false, "ischr": false, "isdir": false, "isfifo": false, "isgid": false, "islnk": false, "isreg": true, "issock": false, "isuid": false, "mode": "0666", "mtime": 1724938862.0, "nlink": 1, "path": "/opt/data/xero.pdf", "pw_name": "root", "rgrp": true, "roth": true, "rusr": true, "size": 1681175, "uid": 0, "wgrp": true, "woth": true, "wusr": true, "xgrp": false, "xoth": false, "xusr": false}, "msg": "", "rc": 0, "start": "2026-07-12 12:28:45.247569", "stderr": "", "stderr_lines": [], "stdout": "", "stdout_lines": []}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+In /var/www/html/index.html file on web1 node add some additional content using blockinfile module. Below is the content:
+
+Welcome to KodeKloud!
+This is Ansible Lab.
+
+
+Make sure user owner and group owner of the file is apache, also make sure the block is added at beginning of the file. Create a new playbook for this ~/playbooks/index2.yml
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+cretaed:
+
+
+[thor@ansible-controller playbooks]$ cat index2.yml
+---
+- name: Add block in file
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Add content to the beginning of the file
+      blockinfile:
+        path: /var/www/html/index.html
+        block: | 
+          Welcome to KodeKloud!
+          This is Ansible Lab.
+        insertbefore: BOF
+        owner: apache
+        group: apache
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory index2.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: index2.yml *******************************************************************************************
+1 plays in index2.yml
+
+PLAY [Add block in file] ***************************************************************************************
+
+TASK [Add content to the beginning of the file] ****************************************************************
+task path: /home/thor/playbooks/index2.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "Block inserted and ownership, perms or SE linux context changed"}
+
+
+On web1 node we want to run our httpd server on port 8080. Create a playbook ~/playbooks/httpd.yml to change port 80 to 8080 in /etc/httpd/conf/httpd.conf file using replace module. Also make sure Ansible restarts httpd service after making the change.
+
+
+Listen 80 is the parameter that need to be changed in /etc/httpd/conf/httpd.conf
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+---
+- name: Playbook change port
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Change ports
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^Listen 80'
+        replace: 'Listen 8080'
+
+    - name: Restart Apache service
+      service:
+        name: httpd
+        state: restarted
+
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory httpd.yml -vv
+
+
+
+////////////////////archiving lab //////////////////
+
+
+
+Create an inventory file under ~/playbooks directory on Ansible controller host and add web1 as managed node. IP address of the web1 node is 172.20.1.100, SSH user is root and password is Passw0rd.
+
+
+Create a playbook ~/playbooks/zip.yml to make a zip archive opt.zip of /opt directory on web1 node and save it under /root directory on web1 node itself.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+
+[thor@ansible-controller playbooks]$ cat inventory
+web1 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+
+[all]
+web1
+
+yml:
+
+---
+- name: Create a zip archive of /opt directory
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Compress /opt directory into opt.zip
+      community.general.archive:
+        path: /opt
+        dest: /root/opt.zip
+        format: zip
+
+run: 
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory zip.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: zip.yml **********************************************************************************************
+1 plays in zip.yml
+
+PLAY [Create a zip archive of /opt directory] ******************************************************************
+
+TASK [Compress /opt directory into opt.zip] ********************************************************************
+task path: /home/thor/playbooks/zip.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "archived": ["/opt/testzip/xero.pdf", "/opt/testzip/dummy.pdf"], "arcroot": "/", "changed": true, "dest": "/root/opt.zip", "dest_state": "archive", "expanded_exclude_paths": [], "expanded_paths": ["/opt"], "gid": 0, "group": "root", "missing": [], "mode": "0644", "owner": "root", "size": 1379759, "state": "file", "uid": 0}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
+On Ansible controller, we have a zip archive local.zip. We want to extract its contents on web1 under /tmp directory. Create a playbook local.yml under ~/playbooks directory to complete the task.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+yml:
+
+
+---
+- name: Extract local zip archive to managed node
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Extract local.zip to /tmp directory
+      unarchive:
+        src: /home/thor/playbooks/local.zip
+        dest: /tmp
+        remote_src: no
+
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory local.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: local.yml ********************************************************************************************
+1 plays in local.yml
+
+PLAY [Extract local zip archive to managed node] ***************************************************************
+
+TASK [Extract local.zip to /tmp directory] *********************************************************************
+task path: /home/thor/playbooks/local.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "dest": "/tmp", "extract_results": {"cmd": ["/usr/bin/unzip", "-o", "/root/.ansible/tmp/ansible-tmp-1783861475.3938525-410-96393254967721/source", "-d", "/tmp"], "err": "", "out": "Archive:  /root/.ansible/tmp/ansible-tmp-1783861475.3938525-410-96393254967721/source\n   creating: /tmp/local/\n extracting: /tmp/local/ansible.txt  \n", "rc": 0}, "gid": 0, "group": "root", "handler": "ZipArchive", "mode": "01777", "owner": "root", "size": 4096, "src": "/root/.ansible/tmp/ansible-tmp-1783861475.3938525-410-96393254967721/source", "state": "directory", "uid": 0}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+On web1 node we have an archive data.tar.gz under /root directory, extract it under /srv directory by developing a playbook ~/playbooks/data.yml and make sure data.tar.gz archive is removed after that.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+yaml:
+
+---
+- name: Extract data archive and cleanup
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Extract data.tar.gz under /srv directory
+      unarchive:
+        src: /root/data.tar.gz
+        dest: /srv
+        remote_src: yes
+
+    - name: Remove the data.tar.gz archive
+      file:
+        path: /root/data.tar.gz
+        state: absent
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory data.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: data.yml *********************************************************************************************
+1 plays in data.yml
+
+PLAY [Extract data archive and cleanup] ************************************************************************
+
+TASK [Extract data.tar.gz under /srv directory] ****************************************************************
+task path: /home/thor/playbooks/data.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "dest": "/srv", "extract_results": {"cmd": ["/usr/bin/gtar", "--extract", "-C", "/srv", "-z", "-f", "/root/data.tar.gz"], "err": "", "out": "", "rc": 0}, "gid": 0, "group": "root", "handler": "TgzArchive", "mode": "0755", "owner": "root", "size": 4096, "src": "/root/data.tar.gz", "state": "directory", "uid": 0}
+
+TASK [Remove the data.tar.gz archive] **************************************************************************
+task path: /home/thor/playbooks/data.yml:12
+changed: [web1] => {"changed": true, "path": "/root/data.tar.gz", "state": "absent"}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=2    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+Create a playbook download.yml under ~/playbooks directory to download and extract the https://github.com/kodekloudhub/Hello-World/archive/master.zip zip archive under /root directory on the web1 node.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+---
+- name: Download and extract zip archive
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Download Hello-World archive and extract under /root
+      unarchive:
+        src: https://github.com/kodekloudhub/Hello-World/archive/master.zip
+        dest: /root
+        remote_src: yes
+
+run:
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory download.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: download.yml *****************************************************************************************
+1 plays in download.yml
+
+PLAY [Download and extract zip archive] ************************************************************************
+
+TASK [Download Hello-World archive and extract under /root] ****************************************************
+task path: /home/thor/playbooks/download.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "dest": "/root", "extract_results": {"cmd": ["/usr/bin/unzip", "-o", "/root/.ansible/tmp/ansible-tmp-1783861760.166454-1137-195881426405929/master_y5te6wg.zip", "-d", "/root"], "err": "", "out": "Archive:  /root/.ansible/tmp/ansible-tmp-1783861760.166454-1137-195881426405929/master_y5te6wg.zip\na523b25e621b4df0c94c3b8ac620faa78798cd88\n   creating: /root/Hello-World-master/\n extracting: /root/Hello-World-master/README  \n", "rc": 0}, "gid": 0, "group": "root", "handler": "ZipArchive", "mode": "0550", "owner": "root", "size": 4096, "src": "/root/.ansible/tmp/ansible-tmp-1783861760.166454-1137-195881426405929/master_y5te6wg.zip", "state": "directory", "uid": 0}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+We have three files on web1 node /root/file1.txt, /usr/local/share/file2.txt and /var/log/lastlog. Create a bz2 archive of all these files and save it under /root directory, name the archive as files.tar.bz2. You can create ~/playbooks/files.yml playbook for it.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+yml:
+
+---
+- name: Create a bz2 archive of specific files
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Archive multiple files into files.tar.bz2
+      community.general.archive:
+        path:
+          - /root/file1.txt
+          - /usr/local/share/file2.txt
+          - /var/log/lastlog
+        dest: /root/files.tar.bz2
+        format: bz2
+
+run:
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory files.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: files.yml ********************************************************************************************
+1 plays in files.yml
+
+PLAY [Create a bz2 archive of specific files] ******************************************************************
+
+TASK [Archive multiple files into files.tar.bz2] ***************************************************************
+task path: /home/thor/playbooks/files.yml:6
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "archived": ["/root/file1.txt", "/usr/local/share/file2.txt", "/var/log/lastlog"], "arcroot": "/", "changed": true, "dest": "/root/files.tar.bz2", "dest_state": "archive", "expanded_exclude_paths": [], "expanded_paths": ["/root/file1.txt", "/usr/local/share/file2.txt", "/var/log/lastlog"], "gid": 0, "group": "root", "missing": [], "mode": "0644", "owner": "root", "size": 342, "state": "file", "uid": 0}
+
+PLAY RECAP *****************************************************************************************************
+web1                       : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+Exam strategy tip
+When you forget a module name, search for it:
+
+bash
+ansible-doc -l | grep archive
+ansible-doc -l | grep ssh
+ansible-doc -l | grep file
+
+
+
+
+We want to setup nginx on web1 node with some sample html code. Create a playbook ~/playbooks/nginx.yml to do so. Below are the details about the task:
+
+
+a. Install nginx package and start/enable its service.
+
+b. Extract /root/nginx.zip archive under /usr/share/nginx/html directory.
+
+c. Inside /usr/share/nginx/html/index.html replace line This is sample html code with line This is KodeKloud Ansible lab.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+ansible-doc package:
+
+---
+- name: Setup Nginx and Extract Web Content
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install Nginx package
+      yum:
+        name: nginx
+        state: present
+
+now to do search for service:
+
+ansible-doc service
+
+- name: Start and enable Nginx service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+
+now next step is archive:
+
+ansible-doc archive or better:
+
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep unarchive
+ansible.builtin.unarchive  
+
+and see there example:
+
+- name: Extract nginx.zip under web root directory
+      unarchive:
+        src: /root/nginx.zip
+        dest: /usr/share/nginx/html
+        remote_src: yes
+
+or:
+
+ansible-doc -l | grep archive
+ansible-doc -l | grep zip
+
+
+now search for replace:
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep replace
+ansible.builtin.replace  
+
+
+- name: Replace sample html text in index.html
+      replace:
+        path: /usr/share/nginx/html/index.html
+        regexp: 'This is sample html code'
+        replace: 'This is KodeKloud Ansible lab'
+
+
+
+so now we create the yml with all findings:
+
+
+---
+- name: Setup Nginx and Extract Web Content
+  hosts: web1
+  become: yes
+  tasks:
+    - name: Install Nginx package
+      yum:
+        name: nginx
+        state: present
+
+    - name: Start and enable Nginx service
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Extract nginx.zip under web root directory
+      unarchive:
+        src: /root/nginx.zip
+        dest: /usr/share/nginx/html
+        remote_src: yes
+
+    - name: Replace sample html text in index.html
+      replace:
+        path: /usr/share/nginx/html/index.html
+        regexp: 'This is sample html code'
+        replace: 'This is KodeKloud Ansible lab'
+
+////////////////////////Lab Modules Scheduled Task ////////////
+
+
+Create a playbook ~/playbooks/lastlog.yml to add a cron job Clear Lastlog on node00 to empty the /var/log/lastlog logs file. The job must run at 12am everyday.
+
+
+You can use the command echo “” > /var/log/lastlog to empty the lastlog file and schedule should be 0 0 * * *.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+search for cron module:
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep cron
+ansible.builtin.cron                                                                             Manage cron...        
+community.general.cronvar  
+
+i see two let's start from the first:
+[thor@ansible-controller playbooks]$ ansible-doc ansible.builtin.cron 
+
+
+[thor@ansible-controller playbooks]$ cat lastlog.yml
+---
+- name: Empty last playbook
+  hosts: node00
+  become: yes
+  tasks:
+
+    - name: "Empty file every night 12am"
+      ansible.builtin.cron:
+        name: "Clear last log"
+        minute: "0"
+        hour: "0"
+        job: 'echo "" > /var/log/lastlog'
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory lastlog.yml
+
+PLAY [Empty last playbook] ***************************************************************************************************************
+
+TASK [Empty file every night 12am] *******************************************************************************************************
+changed: [node00]
+
+PLAY RECAP *******************************************************************************************************************************
+node00                     : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
+
+We have a script /root/free.sh on node00 that is used to check the free system memory. We would like to create a cron Free Memory Check to execute this script after every 2 hour (i.e 12am, 2am, 4am etc), the command to execute the script is sh /root/free.sh and schedule should be 0 */2 * * *.
+
+
+You can create a playbook ~/playbooks/script_cron.yml for this.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+[thor@ansible-controller playbooks]$ cat script_cron.yml
+---
+- name: Execute script cron playbook
+  hosts: node00
+  become: yes
+  tasks:
+
+    - name: Execute script with cron
+      ansible.builtin.cron:
+        name: "Free Memory Check"
+        minute: "0"
+        hour: "*/2"
+        job: "sh /root/free.sh"
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory script_cron.yml
+
+PLAY [Execute script cron playbook] ******************************************************************************************************
+
+TASK [Execute script with cron] **********************************************************************************************************
+changed: [node00]
+
+PLAY RECAP *******************************************************************************************************************************
+node00                     : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+
+We had a different cron earlier by the name Check Memory, to execute a different script - /root/free.sh on node00. That job was configured to run every 1 hour. However as we have now a new Cronjob configured let us get rid of the old one. Create a playbook ~/playbooks/remove_cron.yml to remove this cron from node00.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+run ansible-doc -l | grep cron  - to find the module
+
+then run:ansible-doc ansible.builtin.cron  to check the module options
+
+
+
+
+[thor@ansible-controller playbooks]$ cat remove_cron.yml
+---
+- name: Playbook
+  hosts: node00
+  become: yes
+  tasks:
+    - name: Remove prev cron job
+      ansible.builtin.cron:
+        name: "Check Memory"
+        state: absent
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory remove_cron.yml
+
+PLAY [Playbook] **************************************************************************************************************************
+
+TASK [Remove prev cron job] **************************************************************************************************************
+ok: [node00]
+
+PLAY RECAP *******************************************************************************************************************************
+node00                     : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+Due to some disk space limitations, we want to cleanup the /tmp location on node00 host after every reboot. Create a playbook ~/playbooks/reboot.yml to add a cron named cleanup on node00 that will execute after every reboot and will clean /tmp location.
+
+
+The command should be rm -rf /tmp/*.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+yml:
+
+[thor@ansible-controller playbooks]$ cat reboot.yml
+---
+- name: Execute clean cron playbook
+  hosts: node00
+  become: yes
+  tasks:
+
+    - name: Execute script with clean tmp cron
+      ansible.builtin.cron:
+        name: "cleanup"
+        special_time: reboot
+        job: "rm -rf /tmp/*"
+
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory reboot.yml
+
+PLAY [Execute clean cron playbook] *******************************************************************************************************
+
+TASK [Execute script with clean tmp cron] ************************************************************************************************
+changed: [node00]
+
+PLAY RECAP *******************************************************************************************************************************
+node00                     : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+
+On node00 we want to keep the installed packages up to date, so we would like to run yum updates regularly. Create a playbook ~/playbooks/yum_update.yml and create a cron job as described below:
+
+a. Do not add cron directly using crontab instead create a cron file /etc/cron.d/ansible_yum.
+
+b. The cron must run on every Sunday at 8:05 am.
+
+c. The name of the cron must be yum update.
+
+d. Cron should be added for user root
+
+
+Use command yum -y update
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+from examples:ansible-doc ansible.builtin.cron:
+
+
+[thor@ansible-controller playbooks]$ cat yum_update.yml 
+---
+- name: Create cron file
+  hosts: node00
+  become: yes
+  tasks:
+    - name: Cron file creation at /etc/cron.d/ansible_yum
+      ansible.builtin.cron:
+        name: "yum update"
+        weekday: "0"
+        minute: "5"
+        hour: "8"
+        user: root
+        job: "yum -y update"
+        cron_file: ansible_yum
+
+run: ansible-playbook -i inventory yum_update.yml 
+
+
+///////////////////////LAB Users and Groups //////////
+
+
+Which of these options is used with Users module to expire a user account
+
+run ansible-doc -l | grep user
+ - and see there modul name: ansible.builtin.user  
+
+run: ansible-doc ansible.builtin.user  
+
+se there:
+
+- expires
+        An expiry time for the user in epoch, it will be ignored on platforms that do not
+        support this.
+        Currently supported on GNU/Linux, FreeBSD, and DragonFlyBSD.
+        Since Ansible 2.6 you can remove the expiry time by specifying a negative value.
+        Currently supported on GNU/Linux and FreeBSD.
+        default: null
+        type: float
+        added in: version 1.9 of ansible-core
+
+
+
+Write a playbook create_user.yml to create a user named admin with group: admin and uid: 2048
+
+NOTE: Your playbook must be placed inside folder: /home/thor/playbooks/. Run this playbook for all servers which are listed in /home/thor/playbooks/inventory file.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+run : 
+EXAMPLES:
+
+- name: Add the user 'johnd' with a specific uid and a primary group of 'admin'
+  ansible.builtin.user:
+    name: johnd
+    comment: John Doe
+    uid: 1040
+    group: admin
+
+created uml based on the example:
+
+
+[thor@ansible-controller playbooks]$ cat create_user.yml
+---
+- name: Playbook create user
+  hosts: all
+  become: yes
+  tasks:
+     - name: Add the user admin  with a specific uid and a primary group of 'admin'
+       ansible.builtin.user:
+         name: admin
+         comment: admin user
+         uid: 2048
+         group: admin
+
+run
+
+
+
+
+Suppose Sabin Nepal joined your team on the first day of 2020 as a special contractor to work for a span of 3 years, ie, till the end of the year 2023. He needs his accounts on the remote hosts till his work span.
+
+
+Write a playbook add_user.yml to create his user account with username neymarsabin that would be expiring after 3 years. The expires option on the users module is in the epoch. So Sunday, December 31, 2023 11:59:59 PM GMT== 1704067199 as epoch time
+
+Remember: your playbook must be placed inside /home/thor/playbooks and use inventory file there.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+created:
+
+[thor@ansible-controller playbooks]$ cat add_user.yml
+---
+- name: Create a temporary contractor user account
+  hosts: all
+  become: yes
+  tasks:
+    - name: Add user neymarsabin with an expiry date
+      ansible.builtin.user:
+        name: neymarsabin
+        expires: 1704067199
+
+run:
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory  add_user.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /etc/ansible/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: add_user.yml *****************************************************************************************
+1 plays in add_user.yml
+
+PLAY [Create a temporary contractor user account] **************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************
+task path: /home/thor/playbooks/add_user.yml:2
+ok: [node00]
+ok: [node01]
+
+TASK [Add user neymarsabin with an expiry date] ****************************************************************
+task path: /home/thor/playbooks/add_user.yml:6
+changed: [node01] => {"changed": true, "comment": "", "create_home": true, "group": 1001, "home": "/home/neymarsabin", "name": "neymarsabin", "shell": "/bin/bash", "state": "present", "system": false, "uid": 1001}
+changed: [node00] => {"changed": true, "comment": "", "create_home": true, "group": 1001, "home": "/home/neymarsabin", "name": "neymarsabin", "shell": "/bin/bash", "state": "present", "system": false, "uid": 1001}
+
+PLAY RECAP *****************************************************************************************************
+node00                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node01                     : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+
+The admin user you created earlier got compromised for some reason, and you need to remove it asap from the system.
+
+
+Write a playbook remove_user.yml to remove the admin account created earlier.
+
+Remember, your playbook must be placed inside /home/thor/playbooks and use inventory file there.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+yml:
+
+---
+- name: Remove compromised admin account
+  hosts: all
+  become: yes
+  tasks:
+    - name: Delete the admin user and its home directory
+      ansible.builtin.user:
+        name: admin
+        state: absent
+        remove: yes
+
+
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory remove_user.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /etc/ansible/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: remove_user.yml **************************************************************************************
+1 plays in remove_user.yml
+
+PLAY [Remove compromised admin account] ************************************************************************
+
+TASK [Gathering Facts] *****************************************************************************************
+task path: /home/thor/playbooks/remove_user.yml:2
+ok: [node01]
+ok: [node00]
+
+TASK [Delete the admin user and its home directory] ************************************************************
+task path: /home/thor/playbooks/remove_user.yml:6
+ok: [node01] => {"changed": false, "name": "admin", "state": "absent"}
+ok: [node00] => {"changed": false, "name": "admin", "state": "absent"}
+
+PLAY RECAP *****************************************************************************************************
+node00                     : ok=2    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+node01                     : ok=2    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+
