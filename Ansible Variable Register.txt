@@ -1,0 +1,246 @@
+
+We need to find the uptime of remote hosts. Out of the following options, which one would print the uptime in your playbook?
+
+A sample playbook is provided to you to answer this question.
+It is located at /home/thor/playbooks/uptime.yml and your remote hosts are listed in the inventory file: /home/thor/playbooks/inventory.
+
+Using options below, make changes to the playbook and run the playbook: ansible-playbook -i inventory uptime.yml, and find the uptime.
+
+
+- hosts: all
+  tasks:
+     - shell: uptime
+       register: uptime_result
+
+     # one of the following option is a correct answer:
+     # - debug: var=uptime_result.output
+     # - debug: msg=uptime_result.stdout
+     # - debug: msg=uptime_result.stdoutput
+     # - debug: var=uptime_result.stdout
+     - name: Print Registered
+       debug:
+         var: uptime_result.stdout
+
+run: 
+
+[thor@ansible-controller playbooks]$ ansible-playbook -i inventory uptime.yml
+
+PLAY [all] *************************************************************************************************************************
+
+TASK [Gathering Facts] *************************************************************************************************************
+ok: [web1]
+ok: [web2]
+
+TASK [shell] ***********************************************************************************************************************
+changed: [web1]
+changed: [web2]
+
+TASK [Print Registered] ************************************************************************************************************
+ok: [web1] => {
+    "uptime_result.stdout": " 09:59:13 up  2:03,  1 user,  load average: 1.81, 1.23, 0.99"
+}
+ok: [web2] => {
+    "uptime_result.stdout": " 09:59:14 up  2:03,  1 user,  load average: 1.81, 1.23, 0.99"
+}
+
+PLAY RECAP *************************************************************************************************************************
+web1                       : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+web2                       : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+
+
+
+Symlinks are common in practice while configuring services. Write a playbook which when executed, creates a file /tmp/by_ansible on the remote hosts. This file must contains the facts/info of /var/run file.
+
+
+A playbook is already at /home/thor/playbooks/playbook.yml for you to start.
+The remote hosts are listed in the inventory file: /home/thor/playbooks/inventory.
+Please complete the task on that file.
+
+To test it with: ansible-playbook -i inventory playbook.yml
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+run help to inspect the moudule which we need:
+
+
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep file
+ansible.builtin.blockinfile                                                                      Insert/update/remove a text block surr...
+ansible.builtin.file   
+
+
+created yml:
+
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: stat module help to find the file info
+      stat:
+        path: /var/run
+      register: your_variable
+
+    # for your reference, check the outputs of these
+    - name: Print varibale
+      debug:
+        var: your_variable.stat
+
+    - name: Create /tmp/by_ansible with the gathered facts
+      copy:
+        content: "{{ your_variable.stat }}"
+        dest: /tmp/by_ansible
+
+run: 
+
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: stat module help to find the file info
+      stat:
+        path: /var/run
+      register: your_variable
+
+    # for your reference, check the outputs of these
+    - name: Print varibale
+      debug:
+        var: your_variable.stat
+
+    - name: Create /tmp/by_ansible with the gathered facts
+      copy:
+        content: "{{ your_variable.stat }}"
+        dest: /tmp/by_ansible
+
+
+
+task:
+
+A friend of yours came to you with this broken playbook: /home/thor/playbooks/help_me_fix_it.yml. Help him fix it.
+
+
+The playbook is supposed to get information about the operating system of the remote hosts and save it to file /tmp/output.txt . Please use the inventory: /home/thor/playbooks/inventory for this task.
+
+Once completed, please test as: ansible-playbook -i inventory help_me_fix_it.yml
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+yml:
+
+
+---
+- name: help me fix it playbook
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: alternative way to gather facts about remote host
+      setup:
+        filter: 'ansible_dist*'
+      register: facts
+
+    - name: Facts to the txt
+      copy:
+        content: "{{ facts.ansible_facts.ansible_distribution }}"
+        dest: /tmp/output.txt
+
+
+
+/////////////////////////////////////
+
+Jinja2 try here: https://mmumshad.github.io/jinja2-quiz/index.html#!/?questions=questions_jinja2_2
+
+Develop a jinja2 expression to generate a resolv.conf file using the given name server details.
+
+Use Jina2 Blocks
+
+source data:
+
+{
+  "name_servers": [
+    "10.1.1.5",
+    "10.1.1.6",
+    "10.1.1.8",
+    "10.8.8.1",
+    "8.8.8.8"
+  ]
+}
+
+{% for name in name_servers %}
+nameserver {{ name }}
+{% endfor %} 
+
+output:
+
+
+nameserver 10.1.1.5
+nameserver 10.1.1.6
+nameserver 10.1.1.8
+nameserver 10.8.8.1
+nameserver 8.8.8.8
+
+
+
+
+Develop a jinja2 expression to generate an /etc/hosts file using the given information.
+
+Use Jina2 Blocks
+
+
+{
+  "hosts": [
+    {
+      "name": "web1",
+      "ip_address": "192.168.5.4"
+    },
+    {
+      "name": "web2",
+      "ip_address": "192.168.5.5"
+    },
+    {
+      "name": "web3",
+      "ip_address": "192.168.5.8"
+    },
+    {
+      "name": "db1",
+      "ip_address": "192.168.5.9"
+    }
+  ]
+}
+
+
+{% for host in hosts %}
+{{ host.name }} {{ host.ip_address }}
+{% endfor %}
+
+Update the jinja2 expression to use an if block to update /etc/hosts file only if the hostname contains web.
+
+Use Jina2 Blocks
+
+{
+  "hosts": [
+    {
+      "name": "web1",
+      "ip_address": "192.168.5.4"
+    },
+    {
+      "name": "web2",
+      "ip_address": "192.168.5.5"
+    },
+    {
+      "name": "web3",
+      "ip_address": "192.168.5.8"
+    },
+    {
+      "name": "db1",
+      "ip_address": "192.168.5.9"
+    }
+  ]
+}
+
+solution:
+
+{% for host in hosts -%}
+  {% if "web" in host.name -%}
+{{ host.name }} {{ host.ip_address -}}
+  {% endif %}
+{% endfor %}
