@@ -1,0 +1,120 @@
+Task 1:
+
+Let us continue to improve our LAMP stack E-Commerce application. Now that we have learned about variables and jinja2 templates, let's put those to use.
+
+
+In the ~/playbooks/lamp-stack-playbooks/deploy-lamp-stack.yml playbook, we have the IP address of the lampweb host hard coded in Create Application DB User task. This is not a good idea as this IP could change in different environments. Update the task to use a variable to get the IP address of the lampweb host. Note that this task is running on the lamp-db server.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+deploy-lamp-stack.yml has:
+
+
+---
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install common dependencies
+      yum:
+        name:
+          - python3-libselinux
+          - python3-libsemanage
+          - firewalld
+        state: installed
+
+# Install and Configure Database
+- name: Deploy lamp stack application
+  hosts: lamp-db
+  become: yes
+  tasks:
+    - name: Install MariaDB package
+      yum:
+        name:
+          - mariadb-server
+          - python3-mysqlclient
+        state: installed
+
+    - name: Create Mysql configuration file
+      copy: src=files/my.cnf dest=/etc/my.cnf
+
+    - name: Start MariaDB Service
+      service: name=mariadb state=started enabled=yes
+
+    - name: Start firewalld
+      service: name=firewalld state=started enabled=yes
+
+    - name: insert firewalld rule
+      firewalld: port={{ mysql_port }}/tcp permanent=true state=enabled immediate=yes
+
+    - name: Create Application Database
+      mysql_db: name={{ dbname }} state=present
+
+    - name: Create Application DB User
+      mysql_user: name={{ dbuser }} password={{ dbpassword }} priv=*.*:ALL host=172.20.1.100 state=present
+
+    - name: Move db-load-script to db host
+      copy:
+        src: files/db-load-script.sql
+        dest: /tmp/db-load-script.sql
+
+    - name: Load Inventory Data
+      shell: mysql -f < /tmp/db-load-script.sql
+
+    - name: Deploy lamp stack application
+  hosts: lampweb
+  become: yes
+  tasks:
+    - name: Install httpd and php
+      yum:
+        name:
+          - httpd
+          - php
+          - php-mysqlnd
+        state: present
+
+    - name: Install web role specific dependencies
+      yum: name=git state=installed
+
+    - name: Start firewalld
+      service: name=firewalld state=started enabled=yes
+
+    - name: insert firewalld rule for httpd
+      firewalld: port={{ httpd_port }}/tcp permanent=true state=enabled immediate=yes
+
+    - name: Set index.php as the default page
+      tags: "Set index.php as the default page"
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: 'DirectoryIndex index.html'
+        replace: 'DirectoryIndex index.php'
+
+    - name: http service state
+      service: name=httpd state=started enabled=yes
+
+    - name: Copy the code from repository
+      git: repo={{ repository }} dest=/var/www/html/  force=yes
+
+    - name: Creates the index.php file
+      copy: src=files/index.php dest=/var/www/html/index.php
+
+
+
+inventory has next:
+
+
+[thor@ansible-controller lamp-stack-playbooks]$ cat inventory 
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_ssh_private_key_file=/home/thor/.ssh/maria ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword
+
+[web_servers]
+lampweb ansible_host=172.20.1.100 ansible_ssh_private_key_file=/home/thor/.ssh/john ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+
+
+
+added in the yml:
+
+    - name: Create Application DB User
+      mysql_user: name={{ dbuser }} password={{ dbpassword }} priv=*.*:ALL host="{{ hostvars['lampweb'].ansible_host }}" state=present

@@ -1,0 +1,1410 @@
+ansible-inventory -i inventory/ -y
+— is used to display your Ansible inventory in YAML format.
+
+all:
+  children:
+    web_servers:
+      hosts:
+        web1:
+        web2:
+    db_servers:
+      hosts:
+        db1:
+        db2:
+
+
+
+
+Roles
+Roles are structured, reusable collections of tasks, variables, templates, and handlers.
+They’re designed for organization and reuse across multiple playbooks.
+
+Example:
+yaml
+- hosts: webservers
+  roles:
+    - apache
+    - firewall
+Folder structure:
+Code
+roles/
+  apache/
+    tasks/
+      main.yml
+    templates/
+      httpd.conf.j2
+    vars/
+      main.yml
+✅ Why use roles
+Encapsulate logic for reuse
+
+Automatically load tasks, vars, handlers, templates
+
+Cleaner playbooks
+
+Easier maintenance and sharing
+
+Confirms your inventory syntax is valid.
+
+Shows how Ansible merges multiple inventory sources.
+
+Helps debug host grouping and variable inheritance.
+
+
+
+
+Includes are inline task imports — they pull in another YAML file dynamically.
+
+Example:
+yaml
+- name: Include web tasks
+  include_tasks: web.yml
+or older syntax:
+
+yaml
+- include: web.yml
+✅ Why use includes
+Useful for splitting large playbooks into smaller files
+
+Allow conditional inclusion (when: statements)
+
+More flexible than roles for ad‑hoc task grouping
+
+🔍 Key differences
+Feature	Roles	Includes
+Purpose	Reusable, structured automation	Inline task inclusion
+Organization	Has folders (tasks, vars, handlers, templates)	Single YAML file
+Reuse	High — can be shared across playbooks	Limited — local to playbook
+Variables	Automatically loaded	Must be defined manually
+Conditional use	Harder (requires tags or vars)	Easy (when: supported)
+Best for	Modular design	Breaking up large playbooks
+
+//////////////////////////////LAB File Separation /////////////////
+
+
+Includes are inline task imports — they pull in another YAML file dynamically.
+
+Example:
+yaml
+- name: Include web tasks
+  include_tasks: web.yml
+or older syntax:
+
+yaml
+- include: web.yml
+✅ Why use includes
+Useful for splitting large playbooks into smaller files
+
+Allow conditional inclusion (when: statements)
+
+More flexible than roles for ad‑hoc task grouping
+
+🔍 Key differences
+Feature	Roles	Includes
+Purpose	Reusable, structured automation	Inline task inclusion
+Organization	Has folders (tasks, vars, handlers, templates)	Single YAML file
+Reuse	High — can be shared across playbooks	Limited — local to playbook
+Variables	Automatically loaded	Must be defined manually
+Conditional use	Harder (requires tags or vars)	Easy (when: supported)
+Best for	Modular design	Breaking up large playbooks
+
+////////////////////////////////////////////////////////LAB - File Separations /////////////
+
+We have an inventory file defined in the /home/thor/playbooks/web-playbooks directory. Move all host variables into a file for each of the server under a host_vars directory
+
+
+The inventory file is located at /home/thor/playbooks/web-playbooks/inventory. You may edit its contents but not its filename or location.
+
+
+inventory file:
+
+[thor@ansible-controller web-playbooks]$ cat inventory 
+[web_servers]
+web1 ansible_host=172.20.1.100 dns_server=8.8.8.8 size=big
+web2 ansible_host=172.20.1.101 dns_server=8.8.8.8 size=small
+
+
+folders structure should be:
+
+inventory/
+  hosts
+  host_vars/
+    web1.yml
+    web2.yml
+    db1.yml
+
+created web1.yml and web2.yml with similar contetn from the inventory:
+
+
+[thor@ansible-controller host_vars]$ cat web1.yml 
+ansible_host: 172.20.1.100
+dns_server: 8.8.8.8
+size: big
+
+[thor@ansible-controller host_vars]$ cat web2.yml 
+ansible_host: 172.20.1.101
+dns_server: 8.8.8.8
+size: small
+
+
+and removing all what is no needed fro inventory file:
+
+
+[thor@ansible-controller web-playbooks]$ cat inventory 
+[web_servers]
+web1 
+web2
+
+DONE !!!!!
+
+Solution check is similar:
+
+Follow below given steps:
+
+cd playbooks/web-playbooks/
+mkdir host_vars
+Create vars file for web1
+
+vi host_vars/web1.yml
+Add below given content
+
+ansible_host: 172.20.1.100
+dns_server: 8.8.8.8
+size: big
+Create vars file for web2
+
+vi host_vars/web2.yml
+Add below given content
+
+ansible_host: 172.20.1.101
+dns_server: 8.8.8.8
+size: small
+Remove all vars from the inventory file
+inventory should look like
+
+[web_servers]
+web1
+web2
+
+
+
+The dns_server details are common to both servers. Move it to a separate variable file under group_vars (create if doesn't exist) and remove from host_vars.
+
+
+
+created folder group_vars with file group_vars.yml:
+
+[thor@ansible-controller group_vars]$ cat web_servers.yml 
+dns_server: 8.8.8.8
+
+and removed dns from web1 and web2:
+
+[thor@ansible-controller host_vars]$ cat web1.yml
+ansible_host: 172.20.1.100
+size: big
+
+
+
+Task 3:
+
+We have a playbook playbook.yml, inventory and other data in /home/thor/playbooks/db-playbooks directory. When we run the playbook it should print the value of the ntp_server configured on the db servers. However right now it says VARIABLE IS NOT DEFINED. Identify and fix the issue.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+[thor@ansible-controller db-playbooks]$ ls
+group_vars  host_vars  inventory  playbook-2.yml  playbook.yml
+
+
+groups_vars has next db.yml file:
+
+
+[thor@ansible-controller group_vars]$ cat db.yml
+ntp_server: 192.168.1.10
+
+
+i see in inventory DB even not defined (but db1.yml and db2.yml exist in host_vars):
+
+
+[thor@ansible-controller db-playbooks]$ cat inventory 
+[db_servers]
+db1
+db2
+
+
+Need to change inventory file to be:
+
+
+[thor@ansible-controller db-playbooks]$ cat inventory 
+[db]    # changed to correct yml  DB name
+db1
+db2
+
+run: 
+
+
+[thor@ansible-controller db-playbooks]$ ansible-playbook -i inventory playbook.yml
+
+PLAY [Print NTP server data] ******************************************************************************************************************************************************
+
+TASK [debug] **********************************************************************************************************************************************************************
+ok: [db1] => {
+    "ntp_server": "192.168.1.10"
+}
+ok: [db2] => {
+    "ntp_server": "192.168.1.10"
+}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+db1                        : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+db2                        : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0 
+
+
+or we can just change the yml name to be like in inventory group [db_servers]:
+
+
+cd /home/thor/playbooks/db-playbooks/
+mv group_vars/db.yml group_vars/db_servers.yml
+
+Task 4:
+
+We have some additional inventory data about database stored at /home/thor/playbooks/general/common/db/db.yml
+
+
+Include this in the playbook playbook-2.yml. We are trying to print the db_version.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+[thor@ansible-controller db-playbooks]$ cat /home/thor/playbooks/general/common/db/db.yml
+db_kind: mysql
+db_version: 8.0.17
+
+
+playbok-2 yml is:
+
+[thor@ansible-controller db-playbooks]$ cat playbook-2.yml 
+- name: Print DB server data
+  hosts: all
+  gather_facts: no
+  tasks:
+    - debug:
+        var: db_version
+
+so this db.yml is in different location!!! and ansible can not find it (it should be group_vars to be found) , we do not want to move it so we can do the next:
+
+
+Use vars_files to manually load it !!!
+
+updated yml:
+
+- name: Print DB server data
+  hosts: all
+  vars_files:
+    - /home/thor/playbooks/general/common/db/db.yml
+  gather_facts: no
+  tasks:
+    - debug:
+        var: db_version
+
+
+[thor@ansible-controller db-playbooks]$ ansible-playbook -i inventory playbook-2.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /etc/ansible/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: playbook-2.yml **********************************************************************************************************************************************************
+1 plays in playbook-2.yml
+
+PLAY [Print DB server data] *******************************************************************************************************************************************************
+
+TASK [debug] **********************************************************************************************************************************************************************
+task path: /home/thor/playbooks/db-playbooks/playbook-2.yml:7
+ok: [db1] => {
+    "db_version": "8.0.17"
+}
+ok: [db2] => {
+    "db_version": "8.0.17"
+}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+db1                        : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+db2                        : ok=1    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0  
+
+WORKED !!!!!
+
+
+another solution:
+
+
+---
+- name: Print DB server data
+  hosts: all
+  gather_facts: no
+  tasks:
+    - include_vars: /home/thor/playbooks/general/common/db/db.yml
+    - debug:
+        var: db_version
+
+
+Task 4:
+
+
+
+We must now install and configure db and web server packages on 2 servers. Some playbooks and task files have been created in the /home/thor/playbooks/full-stack-playbooks directory.
+
+
+Finish the playbook.yml to include the tasks in the tasks directory.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+inventory file:
+
+[thor@ansible-controller full-stack-playbooks]$ cat inventory 
+f-server-1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root dns_server=8.8.8.8 size=big
+
+
+[thor@ansible-controller full-stack-playbooks]$ cat playbook.yml 
+- name: Configure full stack server
+  hosts: f-server-1
+  gather_facts: no
+  tasks:
+
+
+
+tasks folder has two yml files:
+
+[thor@ansible-controller tasks]$ ls
+install-db-server.yml  install-web-server.yml
+
+
+[thor@ansible-controller tasks]$ cat install-db-server.yml 
+- name: 556847-Install dependencies
+  yum:
+    enablerepo: extras
+    name:
+      - epel-release
+    state: installed
+
+- name: 556847-Install dependencies
+  yum:
+    name:
+      - python-pip
+    state: installed
+
+- name: Install MySQL database
+  yum:
+    name:
+      - mysql-server
+      - python3-mysqlclient
+    state:  installed
+
+- name: Start Mysql Service
+  service:
+    name: mysqld
+    state: started
+    enabled: yes
+
+- name: Create Application Database
+  mysql_db: name='employee_db' state=present
+
+- name: Create Application DB User
+  # For web and db on the same server
+  mysql_user: name='db_user' password='Passw0rd' priv='*.*:ALL' host='localhost' state='present'
+  # For web and db on the different server
+  # mysql_user: name='db_user' password='Passw0rd' priv='*.*:ALL' host='%' state='present'
+
+
+second yml file is web:
+
+[thor@ansible-controller tasks]$ cat install-db-server.yml 
+- name: 556847-Install dependencies
+  yum:
+    enablerepo: extras
+    name:
+      - epel-release
+    state: installed
+
+- name: 556847-Install dependencies
+  yum:
+    name:
+      - python-pip
+    state: installed
+
+- name: Install MySQL database
+  yum:
+    name:
+      - mysql-server
+      - python3-mysqlclient
+    state:  installed
+
+- name: Start Mysql Service
+  service:
+    name: mysqld
+    state: started
+    enabled: yes
+
+- name: Create Application Database
+  mysql_db: name='employee_db' state=present
+
+- name: Create Application DB User
+  # For web and db on the same server
+  mysql_user: name='db_user' password='Passw0rd' priv='*.*:ALL' host='localhost' state='present'
+  # For web and db on the different server
+  # mysql_user: name='db_user' password='Passw0rd' priv='*.*:ALL' host='%' state='present'
+[thor@ansible-controller tasks]$ ^C
+[thor@ansible-controller tasks]$ ls
+install-db-server.yml  install-web-server.yml
+[thor@ansible-controller tasks]$ cat install-web-server.yml 
+- name: 5563947-Install dependencies
+  yum:
+    enablerepo: extras
+    name:
+      - epel-release
+    state: installed
+
+- name: 5563947-Install dependencies
+  yum:
+    name:
+      - python-pip
+    state: installed
+
+- name: 5563948-Install Python Flask dependencies
+  pip:
+    name:
+      - flask
+      - flask-mysql
+    state: present
+
+- name: Copy web-server code
+  copy: src=app.py dest=/opt/app.py
+
+- name: Start web-application
+  shell: FLASK_APP=/opt/app.py nohup flask run --host=0.0.0.0 &
+
+NOW ADD reference to these YMLs in the main PLAYBOOK:
+
+
+[thor@ansible-controller full-stack-playbooks]$ cat playbook.yml 
+- name: Configure full stack server
+  hosts: f-server-1
+  gather_facts: no
+  tasks:
+    - name: Load DB tasks
+      import_tasks: tasks/install-db-server.yml
+
+    - name: Load WEB tasks
+      iport_tasks: tasks/install-web-server.yml
+
+run: ansible-playbook -i inventory playbook.yml -vv
+
+WORKS FINE
+
+
+Another solution is to use INCLUDES:
+
+---
+- name: Configure full stack server
+  hosts: f-server-1
+  gather_facts: no
+  tasks:
+    - include_tasks: tasks/install-db-server.yml
+    - include_tasks: tasks/install-web-server.yml
+
+////////////////////////////LAB - File Separation /////////////////////////
+
+
+Let us continue to improve our lamp stack project. Now that we have learned to organize tasks into separate files, let's move the variables to it's respective files. Create a host_vars and group_vars directory and move all variables to them. No variables to be defined in the main inventory file. Only the below parameters are to be configured as host variables. All other parameters are to be configured as group variables for the respective groups:
+
+Host Variables:
+
+ansible_host
+
+ansible_ssh_private_key_file
+
+ansible_user
+
+
+The inventory file is located at /home/thor/playbooks/lamp-stack-playbooks/inventory. You may edit its contents but not its filename or location.
+
+
+current files:
+
+[thor@ansible-controller lamp-stack-playbooks]$ ls
+README.md  ansible.cfg  deploy-lamp-stack.yml  inventory  templates
+
+inventory file:
+
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_ssh_private_key_file=/home/thor/.ssh/maria ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword
+
+[web_servers]
+lampweb ansible_host=172.20.1.100 ansible_ssh_private_key_file=/home/thor/.ssh/john ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+lets create host_vars and put there lamp-db and lampweb first:
+
+created lamp-db.yml:
+
+[thor@ansible-controller host_vars]$ cat lamp-db.yml
+ansible_host: 172.20.1.101
+ansible_ssh_private_key_file: /home/thor/.ssh/maria
+ansible_user: maria
+mysqlservice: mysqld
+mysql_port: 3306 
+dbname: ecomdb
+dbuser: ecomuser
+dbpassword: ecompassword
+
+
+now need to create lamp-web.yml:
+
+[thor@ansible-controller host_vars]$ cat lamp-web.yml 
+ansible_host: 172.20.1.100
+ansible_ssh_private_key_file: /home/thor/.ssh/john
+ansible_user: john
+httpd_port: 80
+repository: https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+now we need to remove the things from inventory file (cause no need them any more):
+
+[thor@ansible-controller lamp-stack-playbooks]$ cat inventory 
+[db_servers]
+lamp-db
+
+[web_servers]
+lamp-web
+
+
+lamp web playbook yml is looking correct:
+
+
+[thor@ansible-controller lamp-stack-playbooks]$ cat deploy-lamp-stack.yml 
+---
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install common dependencies
+      yum:
+        name:
+          - python3-libselinux
+          - python3-libsemanage
+          - firewalld
+        state: installed
+
+# Install and Configure Database
+- name: Deploy lamp stack application
+  hosts: lamp-db
+  become: yes
+  tasks:
+    - name: Install MariaDB package
+      yum:
+        name:
+          - mariadb-server
+          - python3-mysqlclient
+        state: installed
+
+    - name: Create Mysql configuration file
+      template: src=templates/my.cnf.j2 dest=/etc/my.cnf
+
+    - name: Start MariaDB Service
+      service: name=mariadb state=started enabled=yes
+
+    - name: Start firewalld
+      service: name=firewalld state=started enabled=yes
+
+    - name: insert firewalld rule
+      firewalld: port={{ mysql_port }}/tcp permanent=true state=enabled immediate=yes
+
+    - name: Create Application Database
+      mysql_db: name={{ dbname }} state=present
+    
+    - name: gather facts from lampweb
+      setup:
+      delegate_to: "{{ item }}"
+      delegate_facts: True
+      with_items: "{{ hostvars[groups['web_servers'][0]].groups.web_servers }}"
+
+    - name: Create Application DB User
+      tags: Create Application DB User
+      mysql_user: name={{ dbuser }} password={{ dbpassword }} priv=*.*:ALL host={{ hostvars['lampweb']['ansible_facts']['eth0']['ipv4']['address'] }} state=present
+
+    - name: Move db-load-script to db host
+      template:
+        src: templates/db-load-script.sql.j2
+        dest: /tmp/db-load-script.sql
+
+    - name: Load Inventory Data
+      shell: mysql -f < /tmp/db-load-script.sql
+
+- name: Deploy lamp stack application
+  hosts: lamp-web
+  become: yes
+  tasks:
+    - name: Install httpd and php
+      yum:
+        name:
+          - httpd
+          - php
+          - php-mysqlnd
+        state: present
+
+    - name: Install web role specific dependencies
+      yum: name=git state=installed
+
+    - name: Start firewalld
+      service: name=firewalld state=started enabled=yes
+
+    - name: insert firewalld rule for httpd
+      firewalld: port={{ httpd_port }}/tcp permanent=true state=enabled immediate=yes
+
+    - name: Set index.php as the default page
+      tags: "Set index.php as the default page"
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: 'DirectoryIndex index.html'
+        replace: 'DirectoryIndex index.php'
+
+    - name: http service state
+      service: name=httpd state=started enabled=yes
+
+    - name: Copy the code from repository
+      git: repo={{ repository }} dest=/var/www/html/  force=yes
+
+    - name: Creates the index.php file
+      template: src=templates/index.php.j2 dest=/var/www/html/index.php
+
+run:
+
+
+WORKDED !!!!!
+
+
+in solution this , decided to put DB yml in group_var folder:
+
+Follow below given steps:
+
+cd /home/thor/playbooks/lamp-stack-playbooks/
+mkdir host_vars
+Create vars file for lamp-db
+
+vi host_vars/lamp-db.yml
+Add below given content
+
+ansible_host: 172.20.1.101
+ansible_ssh_private_key_file: /home/thor/.ssh/maria
+ansible_user: maria
+Create vars file for lampweb
+
+vi host_vars/lampweb.yml
+Add below given content
+
+ansible_host: 172.20.1.100
+ansible_ssh_private_key_file: /home/thor/.ssh/john
+ansible_user: john
+Create group_vars directory
+
+mkdir group_vars
+Create group vars file for db_servers
+
+vi group_vars/db_servers.yml
+Add below given content
+
+mysqlservice: mysqld
+mysql_port: 3306
+dbname: ecomdb
+dbuser: ecomuser
+dbpassword: ecompassword
+Create group vars file for web_servers
+
+vi group_vars/web_servers.yml
+Add below given content
+
+httpd_port: 80
+repository: https://github.com/kodekloudhub/learning-app-ecommerce.git
+Update inventory
+
+vi inventory
+Update the inventory file to remove the variables, it must look as following:
+
+[db_servers]
+lamp-db
+
+[web_servers]
+lamp-web
+
+
+
+Task 2:
+
+Let's move the tasks to 3 separate files under the /home/thor/playbooks/lamp-stack-playbooks/tasks directory. Create 3 files common.yml, db.yml and web.yml and move the associated tasks into each of them. Then include the tasks in the main playbook.
+
+
+Do not modify the tasks or task names. Only move them to the respective files
+
+task about separate the main yml to different ymls:
+
+
+Follow below given steps:
+
+mkdir tasks
+vi tasks/common.yml
+Add below given content
+
+- name: Install common dependencies
+  yum:
+    name:
+      - python3-libselinux
+      - python3-libsemanage
+      - firewalld
+vi tasks/db.yml
+Add below given content
+
+- name: Install MariaDB package
+  yum:
+    name:
+      - mariadb-server
+      - python3-mysqlclient
+    state: installed
+
+- name: Create Mysql configuration file
+  template: src=templates/my.cnf.j2 dest=/etc/my.cnf
+
+- name: Start MariaDB Service
+  service: name=mariadb state=started enabled=yes
+
+- name: Start firewalld
+  service: name=firewalld state=started enabled=yes
+
+- name: insert firewalld rule
+  firewalld: port={{ mysql_port }}/tcp permanent=true state=enabled immediate=yes
+
+- name: Create Application Database
+  mysql_db: name={{ dbname }} state=present
+
+- name: gather facts from lampweb
+  setup:
+  delegate_to: "{{ item }}"
+  delegate_facts: True
+  with_items: "{{ hostvars[groups['web_servers'][0]].groups.web_servers }}"
+
+- name: Create Application DB User
+  mysql_user: name={{ dbuser }} password={{ dbpassword }} priv=*.*:ALL host={{ hostvars['lampweb']['ansible_facts']['eth0']['ipv4']['address'] }} state=present
+
+- name: Move db-load-script to db host
+  template:
+    src: templates/db-load-script.sql.j2
+    dest: /tmp/db-load-script.sql
+
+- name: Load Inventory Data
+  shell: mysql -f < /tmp/db-load-script.sql
+vi tasks/web.yml
+Add below given content
+
+- name: Install httpd and php
+  yum:
+    name:
+      - httpd
+      - php
+      - php-mysqlnd
+    state: present
+
+- name: Install web role specific dependencies
+  yum: name=git state=installed
+
+- name: Start firewalld
+  service: name=firewalld state=started enabled=yes
+
+- name: insert firewalld rule for httpd
+  firewalld: port={{ httpd_port }}/tcp permanent=true state=enabled immediate=yes
+
+- name: Set index.php as the default page
+  tags: "Set index.php as the default page"
+  replace:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: 'DirectoryIndex index.html'
+    replace: 'DirectoryIndex index.php'
+
+- name: http service state
+  service: name=httpd state=started enabled=yes
+
+- name: Copy the code from repository
+  git: repo={{ repository }} dest=/var/www/html/  force=yes
+
+- name: Creates the index.php file
+  template: src=templates/index.php.j2 dest=/var/www/html/index.php
+
+
+
+
+If not done already include the tasks in the main /home/thor/playbooks/lamp-stack-playbooks/deploy-lamp-stack.yml playbook.
+
+
+Follow below given steps:
+
+vi deploy-lamp-stack.yml
+Add below given content
+
+---
+
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  tasks:
+    - include_tasks: tasks/common.yml
+
+    # Install and Configure Database
+- name: Deploy lamp stack application
+  hosts: lamp-db
+  gather_facts: yes
+  become: yes
+  tasks:
+    - include_tasks: tasks/db.yml
+
+- name: Deploy lamp stack application
+  hosts: lampweb
+  gather_facts: yes
+  become: yes
+  tasks:
+    - include_tasks: tasks/web.yml
+
+
+///////////////////////////////////////////Roles ////////////
+
+
+Why do we need Roles in Ansible ? - repeatable work can be saved ,role feature helps with that
+
+ansible galaxy has a lot of roles for any kind of task or configuration you need to perform on the server
+before you starting a write you ROLED better to look in this ansible galaxy community !!!!
+
+Ansible Galaxy: https://galaxy.ansible.com/ui/standalone/roles/
+
+For Example Datadog Monitoring agent and configure checks: https://galaxy.ansible.com/ui/standalone/roles/DataDog/datadog/install/
+
+Install and configure a secure OpenClaw AI assistant with MCP server support https://galaxy.ansible.com/ui/standalone/roles/babidi34/openclaw/
+
+or for example ElasticSearch: https://galaxy.ansible.com/ui/standalone/roles/elastic/elasticsearch/
+
+or PostgreSQL server for Linux:
+
+https://galaxy.ansible.com/ui/standalone/roles/geerlingguy/postgresql/
+
+Grafana: https://galaxy.ansible.com/ui/standalone/roles/cloudalchemy/grafana/
+
+
+
+Note: Option is create from your yml files ROLES and put in galaxy folder structure (even if you do not want to upload it to the site galaxy):
+
+
+Core idea
+Ansible Galaxy does not run random .yml files.
+Galaxy installs roles (or collections), and roles have a fixed structure.
+
+So your two YAMLs must become:
+
+role tasks
+
+inside a role directory
+
+with a tasks/main.yml that includes your two YAMLs
+
+🧩 Step 1 — Create a role
+Use Galaxy to create the role skeleton:
+
+bash
+ansible-galaxy init fullstack
+This creates:
+
+Code
+fullstack/
+  tasks/
+    main.yml
+  handlers/
+  vars/
+  defaults/
+  templates/
+  files/
+🧩 Step 2 — Move your two YAMLs into the role
+Assume your two playbooks are:
+
+install-db.yml
+
+install-web.yml
+
+Move them into the role’s tasks/ folder:
+
+Code
+fullstack/tasks/install-db.yml
+fullstack/tasks/install-web.yml
+🧩 Step 3 — Include them from main.yml
+Edit:
+
+Code
+fullstack/tasks/main.yml
+Put:
+
+yaml
+---
+- name: Install DB server
+  import_tasks: install-db.yml
+
+- name: Install Web server
+  import_tasks: install-web.yml
+Now your role is fully modular.
+
+🧩 Step 4 — Use the role in your main playbook
+Your main playbook becomes:
+
+yaml
+---
+- name: Configure full stack server
+  hosts: f-server-1
+  roles:
+    - fullstack
+That’s it — Galaxy can now install and use this role.
+
+⭐ Why this works
+Galaxy installs roles, not raw YAML files.
+By converting your two YAMLs into a role:
+
+You get a reusable module
+
+You can publish it
+
+You can install it with ansible-galaxy install
+
+You can version it
+
+You can share it with your team
+
+You get clean structure and best practices
+
+📦 Optional: Publish your role to Galaxy
+If you want others to use it:
+
+bash
+ansible-galaxy role import your_github_username fullstack
+🔥 Summary
+To use your two YAMLs with Galaxy:
+
+Create a role
+
+Put your two YAMLs inside tasks/
+
+Include them from tasks/main.yml
+
+Call the role from your playbook
+
+This is the correct and clean way to integrate your existing playbooks with Galaxy.
+
+
+
+ole management
+Command	Description
+ansible-galaxy list	Shows all installed roles.
+ansible-galaxy install <role_name>	Installs a role from Galaxy or GitHub.
+ansible-galaxy install <role_name> -p ./roles	Installs a role into a custom path.
+ansible-galaxy remove <role_name>	Removes an installed role.
+ansible-galaxy init <role_name>	Creates a new role skeleton.
+ansible-galaxy role info <role_name>	Displays metadata and details about a role.
+ansible-galaxy role search <keyword>	Searches Galaxy for roles matching a keyword.
+ansible-galaxy role import <namespace> <role_name>	Imports a role from GitHub into Galaxy.
+ansible-galaxy role setup	Prepares a role for publishing (used internally).
+
+
+📦 Collection management
+Command	Description
+ansible-galaxy collection list	Lists installed collections.
+ansible-galaxy collection install <namespace.collection>	Installs a collection.
+ansible-galaxy collection remove <namespace.collection>	Removes a collection.
+ansible-galaxy collection init <namespace.collection>	Creates a new collection skeleton.
+ansible-galaxy collection build	Packages a collection into a .tar.gz file.
+ansible-galaxy collection publish <path_to_tar>	Publishes a collection to Galaxy.
+ansible-galaxy collection verify <path_to_tar>	Verifies a collection archive before publishing.
+
+
+⚙️ Configuration and paths
+Command	Description
+**`ansible-config dump	grep ROLE`**	Shows role‑related configuration paths.
+ansible-config list	Lists all configuration options.
+ansible-config view	Displays the active configuration file.
+
+
+🧠 Useful examples
+bash
+# Install a role from Galaxy
+ansible-galaxy install geerlingguy.mysql
+
+# Install into a custom directory
+ansible-galaxy install geerlingguy.mysql -p ./roles
+
+# Create a new role skeleton
+ansible-galaxy init webserver
+
+# Search for roles related to nginx
+ansible-galaxy role search nginx
+
+# List installed collections
+ansible-galaxy collection list
+⭐ Best practice
+Keep roles in roles/ or ~/.ansible/roles
+
+Use ansible‑galaxy init for new roles
+
+Use ansible‑galaxy install for downloading community roles
+
+Use ansible‑galaxy list to verify installations
+
+///////////////////////////////Labs Roles ////////////////////
+
+Let's start using roles. In the ~/playbooks/db directory we are attempting to configure mysql on a database server. A partially developed playbook is available. We have planned to use a role in the playbook.
+
+
+First, install the kodekloud1.mysql role on the ansible controller.
+In case of any errors during the installation of the role, employ the --ignore-certs flag.
+
+i have added USAGE of the role in the YUM:
+
+
+[thor@ansible-controller db]$ cat deploy_db.yml 
+- name: Deploy MySQL Server
+  hosts: db_server
+  roles:
+    - kodekloud1.mysql
+
+tried to run and it is failed CAUSE ROLE should be downloaded first
+try to list and see ROLE is not here:
+
+[thor@ansible-controller db]$ ansible-galaxy list
+# /usr/share/ansible/roles
+# /etc/ansible/roles
+
+
+Install the ROLE: ansible-galaxy install kodekloud1.mysql
+
+loading role 'mysql', owned by kodekloud1
+- downloading role from https://github.com/kodekloudhub/mysql/archive/master.tar.gz
+- extracting kodekloud1.mysql to /home/thor/.ansible/roles/kodekloud1.mysql
+- kodekloud1.mysql (master) was installed successfully
+
+This installs the role into:
+
+Code
+~/.ansible/roles/kodekloud1.mysql
+
+
+
+
+Option 2 — Install into your project’s roles/ folder
+If you want roles inside your project:
+
+bash
+mkdir roles
+ansible-galaxy install kodekloud1.mysql -p roles
+
+
+RUN the pleybook and ROLE now will be found:
+
+ansible-playbook -i inventory deploy_db.yml -vv
+
+
+
+Task 3:
+
+Let's configure a web server now. Navigate to the /home/thor/playbooks/web directory. Install the geerlingguy.nginx role inside roles directory within the web directory.
+
+cd : /home/thor/playbooks/web
+
+
+ansible-galaxy install geerlingguy.nginx -p /home/thor/playbooks/web/roles
+
+
+[thor@ansible-controller db]$ ansible-galaxy install geerlingguy.nginx
+Starting galaxy role install process
+- downloading role 'nginx', owned by geerlingguy
+- downloading role from https://github.com/geerlingguy/ansible-role-nginx/archive/3.1.4.tar.gz
+- extracting geerlingguy.nginx to /home/thor/playbooks/web/roles/geerlingguy.nginx
+- geerlingguy.nginx (3.1.4) was installed successfully
+
+
+
+Task 4:
+
+
+Update the playbook /home/thor/playbooks/web/deploy_web.yml to use the role geerlingguy.nginx to install nginx web server
+
+
+Pass in an additional parameter to the role to NOT configure the service to be enabled at startup. Use the parameter nginx_service_enabled. Check /home/thor/playbooks/web/roles/geerlingguy.nginx/defaults/main.yml for more details.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+yml use ROLE + pass the parameter to the role:
+
+- name: Deploy Web Server
+  hosts: web_server
+  become: yes
+  roles:
+    - role: geerlingguy.nginx
+      vars:
+        nginx_service_enabled: false
+
+
+Task 5:
+
+Let us now create our own role. Navigate to the /home/thor/playbooks/firewalld directory. A playbook deploy_firewalld.yml is given that installs and starts the firewalld service. Let us first create our own role and move the tasks into it.
+
+
+Create a role named ansible-role-firewalld under in the roles directory.
+
+
+Navigate:
+
+[thor@ansible-controller web]$ cd /home/thor/playbooks/firewalld
+[thor@ansible-controller firewalld]$ ls
+deploy_firewalld.yml  inventory
+
+playbook deploy_firewalld.yml has next code:
+
+
+[thor@ansible-controller firewalld]$ cat deploy_firewalld.yml 
+- name: Configure Firewalld
+  hosts: all
+  tasks:
+    - name: Install common dependencies
+      yum:
+        name:
+          - firewalld
+        state: installed
+
+run and create create projetc:
+
+Run this inside your project root:
+
+Code
+cd /home/thor/ansible
+ansible-galaxy init roles/firewalld
+
+
+
+[thor@ansible-controller firewalld]$ ls
+README.md  defaults  files  handlers  meta  tasks  templates  tests  vars
+
+Task 6:
+
+Move the tasks from playbook /home/thor/playbooks/firewalld/deploy_firewalld.yml to the roles/ansible-role-firewalld/tasks/main.yml file inside the role. Then use this newly created role in /home/thor/playbooks/firewalld/deploy_firewalld.yml playbook
+
+
+vi roles/ansible-role-firewalld/tasks/main.yml
+Update it as below:
+
+- name: Install common dependencies
+  yum:
+    name:
+      - firewalld
+    state: installed
+- name: Start firewalld
+  service: name=firewalld state=started enabled=yes
+Edit deploy_firewalld.yml playbook
+
+vi deploy_firewalld.yml
+Update deploy_firewalld.yml playbook as per below given code
+
+- name: Configure Firewalld
+  hosts: all
+  roles:
+    - ansible-role-firewalld
+
+
+
+/////////////////////////////////Lab Role Creation ////////////////
+
+Task 1:
+
+
+Let us continue to improve our lamp stack project. Now that we have learned about roles, let's create re-usable roles and use them in our project.
+
+
+Start by creating 3 roles named common, httpd-php and mysql under the roles directory under your project at /home/thor/playbooks/lamp-stack-playbooks
+
+current directory is: [thor@ansible-controller lamp-stack-playbooks]$ ls
+README.md  deploy-lamp-stack.yml  group_vars  host_vars  inventory  tasks  templates
+
+
+A: create ROLES folder in the project:
+
+[thor@ansible-controller lamp-stack-playbooks]$ ls
+README.md  deploy-lamp-stack.yml  group_vars  host_vars  inventory  roles  tasks  templates
+
+B: cd to ROLES dir and run:
+
+C: Run galaxy to create structure per role
+
+ansible-galaxy init roles/httpd-php
+ansible-galaxy init roles/common
+ansible-galaxy init roles/mysql
+
+we get 3 project in the ROLES folder:
+
+[thor@ansible-controller lamp-stack-playbooks]$ ls roles
+common  httpd-php  mysql
+
+
+Task 2:
+
+Let's move the relevant tasks from the /home/thor/playbooks/lamp-stack-playbooks/tasks directory to the tasks/main.yml file inside the corresponding role.
+
+
+Do not modify the tasks or task names. Only move them to the respective files
+
+we have the yml files there:
+
+[thor@ansible-controller lamp-stack-playbooks]$ cd /home/thor/playbooks/lamp-stack-playbooks/tasks
+[thor@ansible-controller tasks]$ ls
+common.yml  db.yml  web.yml
+
+need to move them to their ROLES folders which we created before (to the ROLES/name/tasks) 
+note: in side the tasks we have main.yml (do not remove yet just copy there our ymls)
+
+path:
+/home/thor/playbooks/lamp-stack-playbooks/roles/common/tasks
+/home/thor/playbooks/lamp-stack-playbooks/roles/httpd-php/tasks
+/home/thor/playbooks/lamp-stack-playbooks/roles/mysql/tasks
+
+copy first: 
+
+[thor@ansible-controller tasks]$ ls
+common.yml  db.yml  web.yml
+[thor@ansible-controller tasks]$ mv common.yml /home/thor/playbooks/lamp-stack-playbooks/roles/common/tasks
+
+move second:
+
+ mv web.yml /home/thor/playbooks/lamp-stack-playbooks/roles/httpd-php/tasks
+
+move third (db):
+
+
+mv db.yml /home/thor/playbooks/lamp-stack-playbooks/roles/mysql/tasks
+
+Now rename them to main.yml in each roles/xxxxx/tasks/
+
+do for all of them the same:
+
+for example for common:
+[thor@ansible-controller tasks]$ pwd
+/home/thor/playbooks/lamp-stack-playbooks/roles/common/tasks
+
+[thor@ansible-controller tasks]$ ls
+common.yml
+
+renaming:
+
+[thor@ansible-controller tasks]$ mv common.yml main.yml
+[thor@ansible-controller tasks]$ ls
+main.yml
+
+for second:
+
+[thor@ansible-controller tasks]$ pwd
+/home/thor/playbooks/lamp-stack-playbooks/roles/httpd-php/tasks
+
+[thor@ansible-controller tasks]$ ls
+main.yml  web.yml
+[thor@ansible-controller tasks]$ rm main.yml 
+[thor@ansible-controller tasks]$ mv web.yml main.yml
+
+for third:
+[thor@ansible-controller tasks]$ pwd
+/home/thor/playbooks/lamp-stack-playbooks/roles/mysql/tasks
+
+[thor@ansible-controller tasks]$ ls
+db.yml  main.yml
+[thor@ansible-controller tasks]$ rm main.yml 
+[thor@ansible-controller tasks]$ mv db.yml main.yml
+
+
+DONE !!!!!!!!!
+
+
+Task 3:
+
+If not done already, update the main playbook - /home/thor/playbooks/lamp-stack-playbooks/deploy-lamp-stack.yml - to use the newly created roles.
+
+
+at the moment yml has next (and not using ROLES):
+
+
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  tasks:
+    - include_tasks: tasks/common.yml
+
+    # Install and Configure Database
+- name: Deploy lamp stack application
+  hosts: lamp-db
+  become: yes
+  tasks:
+    - include_tasks: tasks/db.yml
+
+- name: Deploy lamp stack application
+  hosts: lampweb
+  become: yes
+  tasks:
+    - include_tasks: tasks/web.yml
+
+after update to use roles:
+
+we have next structure:
+
+roles/
+├── common/
+│   └── tasks/
+│       └── main.yml
+├── mysql/
+│   └── tasks/
+│       └── main.yml
+└── httpd-php/
+    └── tasks/
+        └── main.yml
+
+so we can update the yml to just (no need full path):
+
+
+[thor@ansible-controller tasks]$ cat /home/thor/playbooks/lamp-stack-playbooks/deploy-lamp-stack.yml
+---
+
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  roles:
+      - common
+      - mysql
+      - httpd-php
+
+
+and the path is so  inside roles we put before common,mysql and httpd-php :
+
+[thor@ansible-controller lamp-stack-playbooks]$ ls
+README.md  deploy-lamp-stack.yml  group_vars  host_vars  inventory  roles  tasks  templates
+
+Task 4:
+
+Finally, test your playbook /home/thor/playbooks/lamp-stack-playbooks/deploy-lamp-stack.yml and ensure it runs successfully.
+
+
+Run : ansible-playbook -i inventory deploy-lamp-stack.yml -vv
+
+DONE!!!!
+

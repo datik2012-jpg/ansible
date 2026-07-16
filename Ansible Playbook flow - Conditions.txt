@@ -1,0 +1,1249 @@
+Conditions in loops
+
+---
+- name: Install Softwares
+  hosts: all
+  vars:
+    packages:
+      - name: nginx
+        required: True
+      - name: mysql
+        required: True
+      - name: apache
+        required: False
+
+  tasks:
+    - name: Install "{{ item.name }}" on Debian
+      apt:
+        name: "{{ item.name }}"
+        state: present
+      when: item.required == True
+      loop: "{{ packages }}"
+
+Explanation
+Playbook name: “Install Softwares” — defines the purpose of the playbook.
+
+Hosts: all — runs on all target machines.
+
+Variables: packages — a list of software items with a required flag.
+
+Task: Installs each package using the apt module (Debian-based systems).
+
+Condition: Only installs packages where required == True.
+
+Loop: Iterates through the packages list.
+
+This playbook will install nginx and mysql, skipping apache because its required flag is False.
+
+
+
+Example:
+
+
+
+- name: Check status of a service and email if its down
+  hosts: localhost
+  tasks:
+    - command: service httpd status
+      register: result
+
+    - mail:
+        to: admin@company.com
+        subject: Service Alert
+        body: Httpd Service is down
+      when: result.stdout.find('down') != -1
+
+
+Playbook name: Checks if the httpd (Apache) service is running.
+
+Host: Runs locally on the control machine.
+
+First task: Executes the shell command service httpd status and saves the output in a variable called result.
+
+Second task: Sends an email alert if the word 'down' appears in the command output.
+
+The condition result.stdout.find('down') != -1 means “if ‘down’ is found in the output.”
+
+This is a simple Ansible automation example for monitoring and alerting.
+
+//////////////////////////LAB Conditionals //////////////////////////////////
+
+
+
+Which of the following is a valid conditional clause in an Ansible Playbook?
+
+A:WHEN
+
+Which of the following is a valid conditional clause in an Ansible Playbook?
+
+condition: when: ansible_distribution == "CentOS" and foo=="bar" 
+
+
+Task 3:
+
+We are tasked to deploy an HTTP webserver using Ansible Playbooks. Install apache web server on all the hosts in the inventory /home/thor/playbooks/inventory. Note that they are of different flavours i,e. Ubuntu and CentOS.
+
+
+Develop a playbook /home/thor/playbooks/install_apache.yml that would install apache on both Ubuntu and CentOS. Note that the package name is apache2 on Ubuntu and httpd on CentOS
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+inventory is:
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root[thor@ansible-controller playbooks]$ 
+
+
+ANSIBLE COLLECT ALL FACTS automatically : ansible all -m setup  - i case we want to see all the variables
+
+example:  ansible all -i inventory -m setup
+output is huge so part of it is:
+
+        "ansible_distribution": "CentOS",
+        "ansible_distribution_file_parsed": true,
+        "ansible_distribution_file_path": "/etc/centos-release",
+        "ansible_distribution_file_variety": "CentOS",
+        "ansible_distribution_major_version": "9",
+        "ansible_distribution_release": "Stream",
+        "ansible_distribution_version": "9",
+
+
+
+created yml ( as well added setup to collect the facts - cause they might be disabled in config file nice to check):
+
+
+[thor@ansible-controller playbooks]$ cat install_apache.yml 
+---
+- name: Install apache
+  hosts: all
+  become: yes
+  tasks:
+    # your code goes here...
+    # - install apache2 when Ubuntu
+    # - install httpd when CentOS
+    - name: Gather facts
+      setup:
+    - name: Install Apache Ubuntu
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Install Apache CentOS
+      yum:
+        name: httpd
+        state: present
+      when: ansible_distribution == "CentOS"
+
+another option is:
+
+[thor@ansible-controller playbooks]$ cat install_apache.yml 
+---
+- name: Install apache
+  hosts: all
+  gather_facts: True
+  tasks:
+    - name: install apache2 when Ubuntu
+      package:
+        name: apache2
+        state: present
+      when: ansible_distribution == "Ubuntu"
+    - name: install httpd when CentOS
+      package:
+        name: httpd
+        state: present
+      when: ansible_distribution == "CentOS"
+
+run playbook: ansible-playbook -i inventory install_apache.yml -vv
+
+
+lab has issue:
+
+but web2 still have the issue: fatal: [web2]: FAILED! your Ubuntu host is broken (EOL Lunar) 
+
+
+Task 3:
+
+Check if git package is installed on web2. Create a file /tmp/is_git_installed.txt, file's content should be based on the condition:
+
+If git is installed, print its installed version to the file and if git is absent, content must be: Oops, git is missing
+
+
+Write a playbook at /home/thor/playbooks/check_if_missing.yml and use the inventory file /home/thor/playbooks/inventory
+
+Note: web2 is a ubuntu host.
+
+Validation may take some time depending on the complexity and structure of the playbook.
+
+inventory file is:
+
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root[thor@ansible-controller playbooks]$ 
+
+
+
+created next playbook + i have added Task Print Output of register git_check to see what it has:
+
+
+[thor@ansible-controller playbooks]$ cat check_if_missing.yml
+---
+- name: Playbook check Git
+  hosts: web2
+  become: yes
+  tasks:
+    - name: Check if git Installed
+      command: git --version
+      register: git_check
+      ignore_errors: yes
+    - name: Write Git Install version to the file
+      copy:
+        dest: /tmp/is_git_installed.txt
+        content: git_check.stdout
+      when: git_check.rc == 0
+    - name: Print Output
+      debug:
+        msg: "Git output is {{ git_check }}"
+    - name: Write Git Not Isntalled
+      copy:
+        dest: /tmp/is_git_installed.txt
+        content: "Oops, git is missing"
+      when: git_check.rc != 0
+
+
+
+run: ansible-playbook -i inventory check_if_missing.yml -vv: 
+
+
+TASK [Print Output] ***************************************************************************************************************************************************************
+task path: /home/thor/playbooks/check_if_missing.yml:16
+ok: [web2] => {
+    "msg": "Git output is {'rc': 2, 'stdout': '', 'stderr': '', 'cmd': 'git --version', 'failed': True, 'msg': \"[Errno 2] No such file or directory: b'git'\", 'stdout_lines': [], 'stderr_lines': [], 'changed': False}"
+}
+
+TASK [Write Git Not Isntalled] ****************************************************************************************************************************************************
+task path: /home/thor/playbooks/check_if_missing.yml:19
+ok: [web2] => {"changed": false, "checksum": "d79965fac731fe84ea119db2a6b73a673d7cb165", "dest": "/tmp/is_git_installed.txt", "gid": 0, "group": "root", "mode": "0644", "owner": "root", "path": "/tmp/is_git_installed.txt", "size": 20, "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+web2                       : ok=4    changed=0    unreachable=0    failed=0    skipped=1    rescued=0    ignored=1   
+
+WORKED !!!!!
+
+
+another options is:
+
+
+
+- hosts: web2
+  gather_facts: false
+  tasks:
+    - shell: dpkg -l git
+      register: check_if_git_installed
+      ignore_errors: true
+
+    - debug: var=check_if_git_installed
+    - shell: echo 'Oops, git is missing' > /tmp/is_git_installed.txt
+      when: check_if_git_installed.rc != 0
+
+    - shell: git --version > /tmp/is_git_installed.txt
+      when: check_if_git_installed.rc == 0
+
+
+
+
+Task 5:
+
+
+
+Help your friend fix this playbook /home/thor/playbooks/copy_file_only_if.yml.
+
+
+Your firend is trying to copy this script /home/thor/playbooks/report_status.sh to web2 at location /usr/local/bin/report_status.sh based on a condition: if variable copy_file_only_if=true.
+
+Problem is: Even though (s)he is passing True or true the boolean variable set this way is being evaulated as string and the conditional is being skipped as Conditional result was False
+
+Please use the inventory file /home/thor/playbooks/inventory.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+given inventory:
+
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root[thor@ansible-controller playbooks]$ 
+
+
+use ansible doc to check the module:
+
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep copy
+ansible.builtin.copy 
+
+and see there the options and examples like:
+
+- name: Copy using inline content
+  ansible.builtin.copy:
+    content: '# This file was moved to /etc/other.conf'
+    dest: /etc/mine.conf
+
+
+modified the yml file to be:
+
+
+[thor@ansible-controller playbooks]$ cat copy_file_only_if.yml
+---
+- name: copy script if not present
+  gather_facts: no
+  hosts: web2
+  vars:
+    remote_dest: /usr/local/bin/report_status.sh
+    copy_file_only_if: True 
+  tasks:
+    - copy:
+        src: report_status.sh
+        dest: "{{remote_dest}}"
+      when: copy_file_only_if
+
+
+
+or solution when NO copy_file_only_if variables so when condition will get FALSE:
+
+
+---
+- name: copy script if not present
+  gather_facts: yes
+  hosts: web2
+  vars:
+    remote_dest: /usr/local/bin/report_status.sh
+  tasks:
+    - copy:
+        src: report_status.sh
+        dest: "{{remote_dest}}"
+      when: copy_file_only_if is defined and copy_file_only_if|bool
+
+and then we can path it with ansible-playbook:
+
+Test your playbook using ansible-playbook copy_file_only_if.yml -e copy_file_only_if=False -i inventory -v 
+
+Absolutely, dani — you can pass copy_file_only_if=False on the command line even if the variable is already defined inside your playbook.
+And Ansible will override the playbook value with the -e value.
+
+
+
+Task 6:
+
+
+Check if report_status.sh copied earlier to web2 remote host is executable or not.
+If it is not executable, log the message: File report_status.sh is not executable, making it executable... in file /tmp/change.log on web2 remote host and make it executable.
+
+
+Develop a playbook /home/thor/playbooks/make_it_executable.yml and use the inventory file /home/thor/playbooks/inventory
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+yml updated to check IF FILE EXIST AND IF EXECUTABLE FALSE :
+
+
+[thor@ansible-controller playbooks]$ cat  make_it_executable.yml
+---
+- hosts: all
+  gather_facts: no
+  vars:
+    remote_dest: /usr/local/bin/report_status.sh
+  tasks:
+    - stat:
+        path: "{{remote_dest}}"
+      register: file_status
+
+    - name: Log the message tot he file
+      copy:
+        dest: /tmp/change.log
+        content: "File report_status.sh is not executable, making it executable..."
+      when: file_status.stat.exists and not file_status.stat.executable
+ 
+    - name: Make the script executable
+      file:
+        path: "{{remote_dest}}"
+        mode: '0755'
+      when: file_status.stat.exists and not file_status.stat.executable
+
+run: [thor@ansible-controller playbooks]$ ansible-playbook -i inventory make_it_executable.yml -vv
+
+WORKED !!
+
+
+Another option is:
+
+yml:
+
+---
+- hosts: web2
+  gather_facts: no
+  vars:
+    remote_dest: /usr/local/bin/report_status.sh
+  tasks:
+    - stat:
+        path: "{{remote_dest}}"
+      register: file_status
+
+    - debug: var=file_status
+    - shell: echo "File report_status.sh is not executable, making it executable..." > /tmp/change.log
+      when: file_status.stat.exists and file_status.stat.executable == false
+
+    - name: Make the script executable
+      file:
+        path: "{{remote_dest}}"
+        mode: 0775
+
+
+Task 6:
+
+
+The script report_status.sh executes a command to test if you are still vulnerable to Shellshock Vulnerability.
+The script outputs vulnerable if you are still vulnerable else echos not vulnerable. Note: You don't need to modify anything on the script.
+
+Write a playbook /home/thor/playbooks/check_if_vulnerable.yml and execute that script report_status.sh you copied earlier to test if you are vulnerable. If you are still vulnerable add a play to update package bash to the latest version.
+Use inventory /home/thor/playbooks/inventory.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+inventory is:
+
+[thor@ansible-controller playbooks]$ cat inventory
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root[thor@ansible-controller playbooks]$ 
+
+first i want to see a)we can run the script b)print what this script output:
+
+
+[thor@ansible-controller playbooks]$ cat check_if_vulnerable.yml 
+---
+
+- name: Playbook Vulnerable
+  hosts: web2
+  become: yes
+  tasks:
+    - name: Run script and get output
+      command: /usr/local/bin/report_status.sh
+      register: script_output
+
+    - name: Print script output
+      debug:
+        msg: "Output from the shell csript is: {{ script_output.stdout }}"
+
+run and .sh script on remote host failed to be executed:
+
+so added to check it's content and print what it has:
+
+
+[thor@ansible-controller playbooks]$ cat check_if_vulnerable.yml 
+---
+
+- name: Playbook Vulnerable
+  hosts: web2
+  become: yes
+  tasks:
+    - name: Show script with line numbers
+      command: cat -n /usr/local/bin/report_status.sh
+      register: script_content
+      ignore_errors: yes
+
+    - name: Print script content
+      debug:
+        msg: "{{ script_content.stdout }}"
+
+    - name: Run script and get output
+      command: /usr/local/bin/report_status.sh
+      register: script_output
+
+    - name: Print script output
+      debug:
+        msg: "Output from the shell csript is: {{ script_output.stdout }}"
+
+run and see what the script has:
+
+
+TASK [Show script with line numbers] ********************************************************************************************************************
+task path: /home/thor/playbooks/check_if_vulnerable.yml:7
+changed: [web2] => {"changed": true, "cmd": ["cat", "-n", "/usr/local/bin/report_status.sh"], "delta": "0:00:00.002720", "end": "2026-07-15 08:53:31.744370", "msg": "", "rc": 0, "start": "2026-07-15 08:53:31.741650", "stderr": "", "stderr_lines": [], "stdout": "     1\texport evil='() { :;}; echo vulnerable |tee /tmp/output'; echo 'not vulnerable' | tee /tmp/output;", "stdout_lines": ["     1\texport evil='() { :;}; echo vulnerable |tee /tmp/output'; echo 'not vulnerable' | tee /tmp/output;"]}
+
+TASK [Print script content] *****************************************************************************************************************************
+task path: /home/thor/playbooks/check_if_vulnerable.yml:12
+ok: [web2] => {
+    "msg": "     1\texport evil='() { :;}; echo vulnerable |tee /tmp/output'; echo 'not vulnerable' | tee /tmp/output;"
+}
+
+we can see that NOT VALID .sh script:
+
+
+It is not a valid script file
+A script must start with a shebang and contain valid shell syntax.
+Your file is just one long line of shell code.
+
+✔ It uses Shellshock payload syntax
+The line:
+
+Code
+() { :;};
+
+we can try to tell to use BASH directly: you tell Ansible to run it with bash:
+yaml
+command: bash /usr/local/bin/report_status.sh
+
+let's try to add it to the yml:
+
+update yml with 'bash':
+
+
+[thor@ansible-controller playbooks]$ cat check_if_vulnerable.yml
+---
+
+- name: Playbook Vulnerable
+  hosts: web2
+  become: yes
+  tasks:
+    - name: Show script with line numbers
+      command: cat -n /usr/local/bin/report_status.sh
+      register: script_content
+      ignore_errors: yes
+
+    - name: Print script content
+      debug:
+        msg: "{{ script_content.stdout }}"
+
+    - name: Run script and get output
+      command: bash /usr/local/bin/report_status.sh
+      register: script_output
+
+    - name: Print script output
+      debug:
+        msg: "Output from the shell csript is: {{ script_output.stdout }}"
+
+Solution which can be done as well is:
+
+---
+- hosts: web2
+  gather_facts: no
+  tasks:
+    - name: Run a script
+      shell: sh /usr/local/bin/report_status.sh
+      register: test
+    - debug:
+        var: test
+
+
+Task Last one:
+
+Develop a playbook - /home/thor/playbooks/install_packages.yml - to install an extra package htop on web2 node. The package name htop must be passed as a value to a variable extra_packages with the -e option in the command line while running the playbook. The playbook install_packages.yml already has some exiting code, modify the task install extra packages so that it only runs if extra_packages variable is defined and it has value htop. At the end playbook must be able to install this extra package on web2 node while passing correct values in the extra vars i.e -e.
+
+
+Use inventory from /home/thor/playbooks/inventory.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+updated yml file to have IS DEFINED:
+
+
+[thor@ansible-controller playbooks]$ cat install_packages.yml
+---
+- hosts: web2
+  gather_facts: no
+  tasks:
+    - name: install nginx
+      apt: name=nginx state=present
+      tags: [install_core]
+
+    - name: install extra packages
+      apt: name={{item}}
+      with_items: "{{extra_packages}}"
+      when: extra_packages is defined and extra_packages=="htop" 
+
+now when we run ansible playbook we need to pass that extra_packages varibale cause it is not defined in the yml:
+>ansible-playbook -i inventory install_packages.yml -e extra_packages='htop' -vv
+
+
+////////////////////////////BLOCK to combine similar code to few tasks ///////////
+
+
+
+Concept	Description
+block	Groups tasks together so they share conditions or privilege settings.
+become_user	Runs tasks as a specific user instead of root.
+ansible_facts	Provides system information like OS, version, and hardware details.
+Conditional execution	when: ansible_facts['distribution'] == 'CentOS' ensures tasks run only on CentOS systems.
+
+
+
+- block:
+    - name: Install MySQL
+      yum:
+        name: mysql-server
+        state: latest
+    - name: Start MySQL Service
+      service:
+        name: mysqld
+        state: started
+  become: yes
+  become_user: db-user
+  when: ansible_facts['distribution'] == 'CentOS'
+
+another block example: an Ansible playbook that installs MySQL on CentOS and sends email notifications if the installation fails or completes successfully:
+
+hosts: server1
+tasks:
+  - block:
+      - name: Install MySQL
+        yum:
+          name: mysql-server
+          state: present
+      - name: Start MySQL Service
+        service:
+          name: mysql-server
+          state: started
+    become_user: db-user
+    when: ansible_facts['distribution'] == 'CentOS'
+
+    rescue:
+      - mail:
+          to: admin@company.com
+          subject: Installation Failed
+          body: DB Install Failed at {{ ansible_failed_task.name }}
+
+    always:
+      - mail:
+          to: admin@company.com
+          subject: Installation Status
+          body: DB Install Status - {{ ansible_failed_result }}
+
+
+//////////////////////////////////LAB Blocks ///////////////
+
+How do we do logical grouping of the tasks in Ansible?
+
+A: Using BLOCKs
+
+How do we do logical grouping of the tasks in Ansible?
+
+A: rescue
+
+
+TASK 3:
+
+
+We have three web nodes that are managed by Ansible. There is an inventory file ~/playbooks/inventory on Ansible controller which has all these three nodes added. Create a playbook ~/playbooks/blocks.yml on Ansible controller to install httpd web server and start its service. We need the tasks to be run only on CentOS based web nodes.
+
+
+Create the playbook using blocks to logically group the tasks (installation and service start) so that even if we run playbook for all hosts that are in inventory, the tasks are run only on CentOS based nodes.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+inventory file:
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+web2 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+web3 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+
+first let's write what we know and without BLOCK:
+
+---
+- name: Playbook Block Install usage
+  hosts: all        
+  become: yes
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+      when: ansible_distribution == 'CentOS'
+
+    - name: Run httpd
+      service:
+        name: httpd
+        state: started
+      when: ansible_distribution == 'CentOS'
+
+and only now we can add BLOCK and combine the code !!!
+
+:
+
+---
+- name: Playbook Block Install usage
+  hosts: all
+  become: yes
+  tasks:
+    - block:
+      - name: Install httpd
+        yum:
+          name: httpd
+          state: present
+        
+      - name: Run httpd
+        service:
+          name: httpd
+          state: started
+      when: ansible_distribution == 'CentOS' 
+
+
+and run: ansible-playbook -i inventory blocks.yml -vv
+
+DONE !!!!!!
+
+
+
+Task 4 :
+
+
+
+Make a copy of the playbook you just created - ~/playbooks/blocks.yml to ~/playbooks/blocks_rescue.yml. Update the new playbook as per below details:
+
+
+a. Add a rescue section under the block so that if the task fails for any of the managed node the rescue section should display a message in the form:
+
+Playbook has failed for web3 node
+Use {{ inventory_hostname}} in place of web3 so that correct value can be picked for each node
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+copy the content: [thor@ansible-controller playbooks]$ cp blocks.yml blocks_rescue.yml
+
+added next rescue to the yml:
+
+[thor@ansible-controller playbooks]$ cat blocks_rescue.yml 
+---
+- name: Playbook Block Install usage
+  hosts: all
+  become: yes
+  tasks:
+    - block:
+      - name: Install httpd
+        yum:
+          name: httpd
+          state: present
+       
+      - name: Run httpd
+        service:
+          name: httpd
+          state: started
+      when: ansible_distribution == 'CentOS'
+      rescue:
+        - name: 
+          debug:
+             msg: "Playbook has failed for {{ ansible_hostname }} node"
+
+
+run: ansible-playbook -i inventory blocks_rescue.yml -vv
+
+so rescure task will print:
+
+
+TASK [debug] **********************************************************************************************************************************************************************
+task path: /home/thor/playbooks/blocks_rescue.yml:18
+ok: [web3] => {
+    "msg": "Playbook has failed for web3 node"
+}
+
+WORKED !!!!
+
+
+similar option is:
+
+
+---
+- hosts: all
+  tasks:
+    - name: Install and configure httpd web server
+      when: ansible_facts['distribution'] == 'CentOS'
+      block:
+        - yum:
+            name: httpd
+            state: present
+        - service:
+            name: httpd
+            state: started
+      rescue:
+        - debug:
+
+
+Task 5:
+
+
+We just created a new playbook at ~/playbooks/blocks_always.yml. This playbook creates a file on all web nodes and performs some tasks on them. The last task that prints This task always runs! must always run. However, the playbook fails at the second task and as a result the third and fourth task does not run. We do not need to fix the second task for now, but by using always section we want the last task to always run regardless of status of other tasks before it.
+
+
+Add an always section and configure the last task to always run. Do not modify any other task.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+added only always part to the yml:
+
+
+[thor@ansible-controller playbooks]$ cat blocks_always.yml
+
+
+---
+- hosts: all
+  tasks:
+    - name: Create a file
+      block:
+        - name: Touch file
+          file:
+            path: /tmp/file.txt
+            state: touch
+
+        - name: This will fail
+          command: /bin/false
+
+        - name: This will never run
+          debug:
+            msg: "This will never run"
+
+      rescue:
+        - name: Rescue task
+          debug:
+            msg: "Playbook has failed for {{ ansible_hostname }} node"
+
+      always:
+        - name: Task which always runs
+          debug:
+            msg: "This task always runs!"
+
+run: ansible-playbook -i inventory blocks_always.yml -vv
+
+SUCCESS RUN (Task: This task will fail shoud to fails as expected )
+
+////////////////////////////////////Error Hanldling ///////////////
+
+
+In case we need stop the execution of the playbook when at least one step failed for any sevrer: any_errors_fatal: true
+
+- name: Deploy web application
+  hosts: server1,server2,server3
+  any_errors_fatal: true
+  tasks:
+
+
+Concept	Explanation
+hosts	Lists all target machines (server1, server2, server3). Ansible automatically runs tasks on each host.
+any_errors_fatal	If any host fails, Ansible stops the entire play immediately — no other hosts continue.
+tasks	Placeholder for the actions you’ll define next (e.g., deploy files, restart services).
+
+
+Why use any_errors_fatal: true
+Normally, Ansible continues running on other hosts even if one fails.
+Setting this flag ensures atomic deployment — either all servers succeed, or the play stops.
+That’s ideal for web app rollouts where partial success could break consistency.
+
+
+Another example 30% of servers if fails stop the execution:
+
+- name: Deploy web application
+  hosts: server1,server2,server3
+  max_fail_percentage: 30
+
+
+hosts	Targets the listed servers (server1, server2, server3).
+max_fail_percentage	Allows up to 30 % of hosts to fail before Ansible stops the play. If more than 30 % fail, execution halts for all remaining hosts.
+
+
+
+Example:
+
+The ignore_errors directive tells Ansible:
+
+“Even if this task fails, don’t stop the playbook — keep going.”
+
+So if the mail task fails (for example, SMTP unreachable), the rest of the playbook continues instead of aborting.
+
+- mail:
+    to: admin@company.com
+    subject: Server Configured
+    body: Web server has been configured
+  ignore_errors: yes
+
+Example: Fail if Error word exist in the registered variable!!
+
+
+Directive	Purpose
+command	Runs the shell command cat /var/log/server.log.
+register	Saves the command’s output into a variable named command_output.
+failed_when	Marks the task as failed if the word 'ERROR' appears in the command’s standard output.
+
+- command: cat /var/log/server.log
+  register: command_output
+  failed_when: 'ERROR' in command_output.stdout
+
+
+
+Example: If task fail it will do RESCURE:
+
+- name: Deploy web application
+  hosts: server1,server2,server3
+  any_errors_fatal: true
+  tasks:
+    - name: Install web Application
+      block:
+        - name: Install dependencies
+          << code hidden >>
+        - name: Install MySQL Database
+          << code hidden >>
+        - name: Start MySQL Service
+          << code hidden >>
+        - name: Install Python Flask Dependencies
+          << code hidden >>
+        - name: Run web-server
+          << code hidden >>
+      rescue:
+        - mail:
+            to: admin@company.com
+            subject: Playbook Failed
+
+
+
+Concept	Description
+block	Groups tasks together so they share error handling logic.
+rescue	Executes only if any task inside the block fails.
+any_errors_fatal	Stops the play entirely if any host fails — ensures consistency across all servers.
+mail	Sends an email notification when the block fails.
+
+
+So, if any of the installation or configuration tasks fail, the rescue block triggers and sends an email to admin@company.com with the subject “Playbook Failed.”
+
+////////////////////////////////LAB Error Handling ///////////////////
+
+
+Which of the following options can be used to ignore a particular failed task in a play?
+
+A: ignore_errors
+
+
+Which of the following options can be used to ignore a particular failed task in a play?
+
+A: stop if any task failed use  any_errors_fatal: true
+
+
+
+Task 3:
+
+
+We have a playbook at ~/playbooks/httpd.yml to install httpd web server on all web nodes. The inventory file at ~/playbooks/inventory has these web nodes added. Update playbook so that if any task fails for any of the web nodes the playbook should exit for all hosts.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+see inventory first:
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+web2 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+
+
+need to add to the yml any_errors_fatal: true:
+
+[thor@ansible-controller playbooks]$ cat httpd.yml
+---
+- name: Install httpd
+  hosts: all
+  gather_facts: no
+  any_errors_fatal: true
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+
+    - name: start service
+      service:
+        name: httpd
+        state: started
+
+run: ansible-playbook -i inventory httpd.yml -vv
+
+failed for web2:
+TASK [Install httpd] **************************************************************************************************************************************************************
+task path: /home/thor/playbooks/httpd.yml:7
+fatal: [web2]: FAILED! => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": false, "failures": ["No package httpd available."], "msg": "Failed to install some of the specified packages", "rc": 1, "results": []}
+
+and web1 success:
+
+changed: [web1] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "msg": "", "rc": 0, "results": ["Installed: apr-util-1.6.1-23.el9.x86_64", "Installed: mailcap-2.1.49-5.el9.noarch", "Installed: mod_http2-2.0.26-6.el9.x86_64", "Installed: apr-util-bdb-1.6.1-23.el9.x86_64", "Installed: httpd-2.4.62-14.el9.x86_64", "Installed: httpd-core-2.4.62-14.el9.x86_64", "Installed: apr-util-openssl-1.6.1-23.el9.x86_64", "Installed: mod_lua-2.4.62-14.el9.x86_64", "Installed: libbrotli-1.0.9-9.el9.x86_64", "Installed: centos-logos-httpd-90.9-1.el9.noarch", "Installed: httpd-filesystem-2.4.62-14.el9.noarch", "Installed: apr-1.7.0-12.el9.x86_64", "Installed: httpd-tools-2.4.62-14.el9.x86_64"]}
+
+
+Task 4:
+
+
+A playbook at ~/playbooks/httpd_errors.yml runs tasks on web1 node only. However, there is a faulty task in it. We want to ignore the failed task so that the playbook can proceed to the next task. Make the appropriate changes inside the playbook to ignore the second task. Use inventory file ~/playbooks/inventory .
+
+
+Do not try to fix the failed task.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+added ignored errors to everywhere:
+
+
+---
+- name: Install httpd
+  hosts: web1
+  gather_facts: no
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+      ignore_errors: yes
+
+    - name: Do not remove this task
+      command: /bin/false
+      register: results
+      ignore_errors: yes
+
+    - shell: "echo {{ results.msg }} > /tmp/output"
+      ignore_errors: yes
+    
+    - name: start service
+      service:
+        name: httpd
+        state: started
+      ignore_errors: yes
+
+
+run: ansible-playbook -i inventory httpd_errors.yml -vv
+
+
+Task 5:
+
+
+
+The playbook ~/playbooks/httpd_check_errors.yml installs httpd on web1 node, then checks for errors in the error log and then starts the httpd service.
+
+Our goal is for the playbook to fail if the error check (second task) detects errors in the log file. However, with the current playbook, the error check (second task) has no impact as it is only viewing the error log file. Update the playbook so that it fails if it detects a string Error in the file /var/log/httpd/error_log.
+
+
+The task is already there. Only implement error handling. Use ~/playbooks/inventory file to test the playbook that is already present on ansible controller.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+so task should fail when Error found in the results:     
+- name: Check httpd error logs
+      command: cat /var/log/httpd/error_log
+      register: results
+      failed_when: "'Error' in results.stdout"
+
+full yml:
+
+
+[thor@ansible-controller playbooks]$ cat httpd_errors.yml
+---
+- name: Install httpd
+  hosts: web1
+  gather_facts: no
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+      ignore_errors: yes
+
+    - name: Do not remove this task
+      command: /bin/false
+      register: results
+      ignore_errors: yes
+
+    - shell: "echo {{ results.msg }} > /tmp/output"
+      ignore_errors: yes
+    
+    - name: start service
+      service:
+        name: httpd
+        state: started
+      ignore_errors: yes
+
+
+
+run: [thor@ansible-controller playbooks]$ ansible-playbook -i inventory httpd_check_errors.yml -vv
+
+TASK [Check httpd error logs] *****************************************************************************************************************************************************
+task path: /home/thor/playbooks/httpd_check_errors.yml:10
+fatal: [web1]: FAILED! => {"changed": true, "cmd": ["cat", "/var/log/httpd/error_log"], "delta": "0:00:00.003292", "end": "2026-07-15 11:00:08.779641", "failed_when_result": true, "msg": "", "rc": 0, "start": "2026-07-15 11:00:08.776349", "stderr": "", "stderr_lines": [], "stdout": "Error", "stdout_lines": ["Error"]}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+web1                       : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+
+
+
+or solution :
+
+
+---
+- name: Install httpd
+  hosts: web1
+  gather_facts: no
+  tasks:
+    - name: Install httpd
+      yum:
+        name: httpd
+        state: present
+    - name: Check httpd error logs
+      command: cat /var/log/httpd/error_log
+      register: results
+
+    - name: start service
+      service:
+        name: httpd
+        state: started
+      failed_when: '"Error" in results.stdout'
+
+    - name: Create a file
+      file:
+        path: /tmp/file
+        state: touch
+
+
+
+/////////////////////////////////Ansible Parallelism - LAB ///////////
+
+Which of the following is not a valid strategy in Ansible?
+
+
+Valid Ansible strategies
+These are real, supported strategies in Ansible:
+
+linear — default, runs hosts one‑by‑one
+
+free — hosts run tasks independently (non‑blocking)
+
+host_pinned — keeps tasks pinned to the same worker
+
+debug — pauses after each task for inspection
+
+serial — not a strategy, but often confused with one
+
+serial is a play-level keyword, not a strategy.
+
+It controls how many hosts run at the same time, for example:
+
+yaml
+serial: 2
+
+
+❌ Invalid strategies
+These do NOT exist in Ansible:
+
+rolling — people confuse this with serial
+
+parallel — not a strategy
+
+batch — not a strategy
+
+
+The real Ansible strategies
+These are the only valid strategy plugins:
+
+linear — default, runs hosts in order
+
+free — hosts run tasks independently
+
+debug — pauses after each task
+
+host_pinned — keeps a host on the same worker
+
+[defaults]
+forks = 5
+Meaning:
+
+Ansible can run up to 5 hosts in parallel maximum, regardless of serial.
+
+
+Which of the following is the default strategy configured by Ansible.
+
+A:Linear
+
+What is the default value for forks configured in Ansible?
+
+
+A: forks=5
+
+
+
+There are three nodes we are managing using Ansible. All of them are already added in ~/playbooks/inventory file present on Ansible controller. We have a playbook at path ~/playbooks/httpd.yml to install/configure httpd web server on all managed nodes. Update the playbook to use free strategy.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+see inventory:
+
+[thor@ansible-controller playbooks]$ cat inventory 
+web1 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+web2 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+web3 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd
+
+free strategy - when ansible run each task independed : Each host runs tasks independently, without waiting for other hosts.
+
+
+yml:
+
+- name: Install httpd
+  hosts: all
+  gather_facts: no
+  strategy: free
+  tasks:
+    - name: Install htpd
+      yum:
+        name: httpd
+        state: present
+
+    - name: start service
+      service:
+        name: httpd
+        state: started
+
+RUN:ansible-playbook -i inventory httpd.yml -vv
+
+SUCCESS !!!!!
+
+Task 5:
+
+Revert the previous change made to the playbook ~/playbooks/httpd.yml to remove the free strategy and let Ansible use the default linear strategy. Make changes in this playbook to process only 1 server in a single batch i.e Ansible must execute tasks on a single server at a time.
+
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+Will do all the task on web1 when completed do all the tasks on web2:  serial - can help with that
+
+[thor@ansible-controller playbooks]$ cat httpd.yml
+---
+- name: Install httpd
+  hosts: all
+  gather_facts: no
+  serial: 1
+  tasks:
+    - name: Install htpd
+      yum:
+        name: httpd
+        state: present
+
+    - name: start service
+      service:
+        name: httpd
+        state: started
+
+run:  ansible-playbook -i inventory httpd.yml -vv
+

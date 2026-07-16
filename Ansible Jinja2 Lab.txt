@@ -1,0 +1,651 @@
+Task:
+
+
+Let us practice Jinja2 Templates with Ansible. Let us start with the monitoring server scenario. A monitoring server has newly been introduced in our environment. We need to update the agents.conf file with a list of the servers in our environment and their details.
+
+
+Navigate to the ~/playbooks/monitoring-server. The list of the servers are given in the inventory file under group lamp_app. This information must be used to generate an agents.conf file at /etc/monitor/agents.conf on the monitoring_server. Develop a playbook generate-agent-info.yml A template file is already given. Use it. A sample output file is given at sample_agents.conf for your reference. The target servers are not up yet. So don't try to connect to them. Just use their information from the inventory file.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+Inventory file looks like this:
+
+
+[thor@ansible-controller monitoring-server]$ cat inventory 
+monitoring_server ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[lamp_app]
+web0001 ansible_hostname=web0001.company.com ansible_host=10.1.1.101 monitor_port=8080 protocol=http
+web0002 ansible_hostname=web0002.company.com ansible_host=10.1.1.102 monitor_port=8080 protocol=http
+db0003 ansible_hostname=db0003.company.com ansible_host=10.1.1.103 monitor_port=3306 protocol=tcp
+db0004 ansible_hostname=db0004.company.com ansible_host=10.1.1.104 monitor_port=3306 protocol=tcp
+db0005 ansible_hostname=db0005.company.com ansible_host=10.1.1.105 monitor_port=3306 protocol=tcp
+
+
+Example what we should get in the end in the monitorung_server in the file agents.conf:
+
+
+[thor@ansible-controller monitoring-server]$ cat sample_agents.conf
+hostname, ipaddress, monitor_port, protocol
+web0001, 10.1.1.101, 8080, http
+web0002, 10.1.1.102, 8080, http
+db0003, 10.1.1.103, 3306, tcp
+db0004, 10.1.1.104, 3306, tcp
+db0005, 10.1.1.105, 3306, tcp
+
+created in the templates folder next jinja template:
+
+[thor@ansible-controller templates]$ cat agents.conf.j2 
+hostname, ipaddress, monitor_port, type, protocol
+{% for host in groups['lamp_app'] %}
+{{ host }} {{ hostvars[host].ansible_host }} {{ hostvars[host].monitor_port }} {{ hostvars[host].protocol }}
+{% endfor %}
+
+yaml been updated to use that jinja template:
+
+[thor@ansible-controller monitoring-server]$ cat generate-agent-info.yml 
+# generate-agent-info.yml
+- name: Generate Agent Info Playbook
+  hosts: monitoring_server
+  become: yes
+  tasks:
+    - name: Create dir in the server
+      file:
+        path: /etc/monitor
+        state: directory
+        mode: '0755'
+    - name: Create a file with all information agents from template
+      template:
+        src: templates/agents.conf.j2  # template to use
+        dest: /etc/monitor/agents.conf
+        mode: '0644'
+
+RUN:
+
+[thor@ansible-controller monitoring-server]$ ansible-playbook -i inventory  generate-agent-info.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/monitoring-server/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/monitoring-server/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: generate-agent-info.yml *************************************************************************************************************************************************
+1 plays in generate-agent-info.yml
+
+PLAY [Generate Agent Info Playbook] ***********************************************************************************************************************************************
+
+TASK [Create dir in the server] ***************************************************************************************************************************************************
+task path: /home/thor/playbooks/monitoring-server/generate-agent-info.yml:6
+ok: [monitoring_server] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": false, "gid": 0, "group": "root", "mode": "0755", "owner": "root", "path": "/etc/monitor", "size": 4096, "state": "directory", "uid": 0}
+
+TASK [Create a file with all information agents from template] ********************************************************************************************************************
+task path: /home/thor/playbooks/monitoring-server/generate-agent-info.yml:11
+changed: [monitoring_server] => {"changed": true, "checksum": "f8a603c7391fa63754e32c40d4e10af05ca7eb1b", "dest": "/etc/monitor/agents.conf", "gid": 0, "group": "root", "md5sum": "60ca2deedc509c1def24091ba0b92f94", "mode": "0644", "owner": "root", "size": 189, "src": "/root/.ansible/tmp/ansible-tmp-1784041688.5930622-490-187457737409942/source", "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+monitoring_server          : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+WORKED FINE !!!!
+
+
+as well we can do in this way:
+
+
+Update the agents.conf.j2 template
+
+cd ~/playbooks/monitoring-server
+vi templates/agents.conf.j2
+Add below given code
+
+{% for host in groups['lamp_app'] %}
+{{ host }}, {{ hostvars[host]['ansible_host'] }}, {{ hostvars[host]['monitor_port'] }}, {{ hostvars[host]['protocol'] }}
+{% endfor %}
+Update generate-agent-info.yml playbook
+
+vi generate-agent-info.yml
+Add below given code
+
+---
+- hosts: monitoring_server
+  tasks:
+    - template:
+        src: agents.conf.j2
+        dest: /etc/monitor/agents.conf
+
+
+TASK 2:
+
+
+The next task is to configure a load-balancer to distribute traffic to web servers. Everything is already setup.
+
+
+All you need to do is navigate to the ~/playbooks/load-balancer directory. A template of the load-balancer configuration file is given under the templates directory. Update it to add the IPs of the servers under the web group. A sample output file is at sample-load-balancer.conf. Create playbook configure-load-balancer.yml to upload the file to /etc/nginx/conf.d/load-balancer.conf
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+sample of the final file is : sample-load-balancer.conf so where IP addresses we should have jinja code
+
+[thor@ansible-controller load-balancer]$ cat sample-load-balancer.conf
+# Define which servers to include in the load balancing scheme.
+# It's best to use the servers' private IPs for better performance and security.
+# You can find the private IPs at your UpCloud control panel Network section.
+http {
+   upstream backend {
+      server 10.1.0.101;
+      server 10.1.0.102;
+      server 10.1.0.103;
+   }
+
+   # This server accepts all traffic to port 80 and passes it to the upstream.
+   # Notice that the upstream name and the proxy_pass need to match.
+
+   server {
+      listen 80;
+
+      location / {
+          proxy_pass http://backend;
+      }
+   }
+}
+
+inventory looks like this:
+
+
+[thor@ansible-controller load-balancer]$ cat inventory 
+load_balancer ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[web]
+web0001 ansible_hostname=web0001.company.com ansible_host=172.20.1.102 ansible_ssh_pass=Passw0rd
+web0002 ansible_hostname=web0002.company.com ansible_host=172.20.1.103 ansible_ssh_pass=Passw0rd
+web0003 ansible_hostname=web0003.company.com ansible_host=172.20.1.104 ansible_ssh_pass=Passw0rd
+
+
+
+
+Lets start to create a JINJA2 template in the templates: load-balancer.conf.j2
+
+added code:
+
+
+http {
+   upstream backend {  #mine code is here
+      {% for host in groups['web'] %}
+      server {{ hostvars[host].ansible_host }};
+      {% endfor %}
+   }
+
+   # This server accepts all traffic to port 80 and passes it to the upstream.
+   # Notice that the upstream name and the proxy_pass need to match.
+
+   server {
+      listen 80;
+
+      location / {
+          proxy_pass http://backend;
+      }
+   }
+}
+
+
+
+and yml with just creation from template (not added dir creation might be we need):
+
+
+[thor@ansible-controller load-balancer]$ cat configure-load-balancer.yml 
+# configure-load-balancer.yml
+
+---
+- name: Playbook LoadBalancer
+  hosts: load_balancer
+  become: yes
+  tasks:
+    - name: Load Balancer creation from jinja and copy to server
+      template:
+        src: templates/load-balancer.conf.j2
+        dest: /etc/nginx/conf.d/load-balancer.conf
+        mode: '0644'
+
+run:
+
+
+[thor@ansible-controller load-balancer]$ ansible-playbook -i inventory configure-load-balancer.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/load-balancer/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/load-balancer/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: configure-load-balancer.yml *********************************************************************************************************************************************
+1 plays in configure-load-balancer.yml
+
+PLAY [Playbook LoadBalancer] ******************************************************************************************************************************************************
+
+TASK [Load Balancer creation from jinja and copy to server] ***********************************************************************************************************************
+task path: /home/thor/playbooks/load-balancer/configure-load-balancer.yml:8
+changed: [load_balancer] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "checksum": "0ae5fa21a99e7e8f3f8973f17d3a4167dd5bfd73", "dest": "/etc/nginx/conf.d/load-balancer.conf", "gid": 0, "group": "root", "md5sum": "a001e3356b967e772ded9fc7e4a62166", "mode": "0644", "owner": "root", "size": 613, "src": "/root/.ansible/tmp/ansible-tmp-1784042625.8691502-910-204814523513595/source", "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+load_balancer              : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+WORKED !!!!!
+
+
+Another solution:
+
+cd ~/playbooks/load-balancer
+vi templates/load-balancer.conf.j2
+Add below given code
+
+# Define which servers to include in the load balancing scheme.
+# It's best to use the servers' private IPs for better performance and security.
+# You can find the private IPs at your UpCloud control panel Network section.
+http {
+   upstream backend {
+       {% for host in groups['web'] %}
+      server  {{ hostvars[host]['ansible_host'] }};
+       {% endfor %}
+   }
+
+   # This server accepts all traffic to port 80 and passes it to the upstream.
+   # Notice that the upstream name and the proxy_pass need to match.
+
+   server {
+      listen 80;
+
+      location / {
+          proxy_pass http://backend;
+      }
+   }
+}
+Update configure-load-balancer.yml playbook
+
+vi configure-load-balancer.yml
+Add below given code
+
+- hosts: all
+  tasks:
+    - template:
+        src: load-balancer.conf.j2
+        dest: /etc/nginx/conf.d/load-balancer.conf
+      run_once: yes
+
+
+
+TASK 3: GATHERING FACTS TASK
+
+
+The next task is to create an inventory report for all nodes in the environment.
+
+
+Navigate to the ~/playbooks/inventory directory. A template of the report is given under the templates directory. Update the template to print the requested details of all hosts under the web group. The report must be generated and placed on the inventory_server at /tmp/inventory.csv.
+Use ansible_architecture, ansible_distribution_version, ansible_memtotal_mb, ansible_processor_cores & ansible_processor_count variables from facts gathered on each host.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+final inventory with gathered facts, which we should create example for all web group and place at inventory_server host:
+
+
+[thor@ansible-controller inventory]$ cat sample_inventory.csv 
+hostname, architecture, distribution_version, mem_total_mb, processor_cores, processor_count
+db0001, x86_64, 7.6.1810, 3023, 2, 1
+host0002, x86_64, 7.6.1810, 3023, 2, 1
+host0003, x86_64, 7.6.1810, 3023, 2, 1
+
+inventry servers file is:
+
+[thor@ansible-controller inventory]$ cat inventory 
+inventory_server ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[web]
+web0001 ansible_hostname=web0001.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+web0002 ansible_hostname=web0002.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+web0003 ansible_hostname=web0003.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+
+
+
+create next JINJA2 inventory template:
+
+[thor@ansible-controller inventory]$ cat templates/inventory.csv.j2 
+hostname, architecture, distribution_version, mem_total_mb, processor_cores, processor_count
+{% for host in groups['web'] %}
+{{ hostvars[host]['ansible_architecture'] }}, {{ hostvars[host]['ansible_distribution_version'] }}, {{ hostvars[host]['ansible_memtotal_mb'] }}, {{ hostvars[host]['ansible_processor_cores'] }}, {{ hostvars[host]['ansible_processor_count'] }}
+{% endfor %}
+
+
+
+yum :
+
+- hosts: all
+  tasks:
+  - setup:
+
+- hosts: inventory_server
+  tasks:
+    - template:
+        src: inventory.csv.j2
+        dest: /tmp/inventory.csv
+
+
+
+full play structure:
+
+
+- name: Gather facts from all hosts
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Run setup module to collect facts
+      setup:
+
+- name: Generate inventory CSV on inventory_server
+  hosts: inventory_server
+  gather_facts: no
+  tasks:
+    - name: Render inventory CSV
+      template:
+        src: inventory.csv.j2
+        dest: /tmp/inventory.csv
+      run_once: yes
+
+
+
+
+
+The setup module is the same thing Ansible runs when you use gather_facts: yes.
+
+It collects:
+
+hostname
+
+architecture
+
+memory
+
+CPU
+
+OS version
+
+network interfaces
+
+IP addresses
+
+and hundreds of other facts
+      run_once: yes
+
+
+
+Why this works:
+
+First play: runs setup on all → facts are collected for every host, so hostvars[host].ansible_facts.* is populated.
+
+Second play: runs only on inventory_server, but because facts are already gathered, the Jinja template can safely loop over groups['web'] and read hostvars[...].
+
+
+
+Task 4:
+
+
+The next task is to create a performance report for all nodes in the environment.
+
+
+Navigate to the ~/playbooks/report directory. A template of the report is given under the templates directory. Update the template print the requested details of all hosts under the web group. A sample report is given at sample_report.csv. The report must be generated and placed on the reporting_server at /tmp/report.csv
+
+Show free memory and update
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+Sample report:
+[thor@ansible-controller report]$ cat sample_report.csv
+hostname, free memory, uptime
+web0001, 1443, 6720
+web0002, 1444, 6720
+web0003, 1444, 6720
+
+
+inventory file is:
+
+[thor@ansible-controller report]$ cat inventory 
+reporting_server ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[web]
+web0001 ansible_hostname=web0001.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+web0002 ansible_hostname=web0002.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+web0003 ansible_hostname=web0003.company.com ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+
+create jinja template BUT catch can be SERVERS do not have memfree and uptime sp need run task before and register these variables in the yml:
+
+[thor@ansible-controller templates]$ cat report.csv.j2 
+hostname, free memory, uptime
+{% for host in groups['web'] %}
+{{ host ]} {{ hostvars[host]['ansible_memfree_mb]' }} {{ hostvars[host]['uptime'] }}
+
+
+now create the yml:
+
+
+[thor@ansible-controller report]$ cat generate-report.yml 
+# generate-report.yml
+- name: Playbook Generate Report
+  hosts: all
+  tasks:
+    - name: Gather Facts from all
+      setup:   #will gather facts from all servers
+
+    - name: Get uptime
+      command: uptime -p
+      register: uptime_result
+
+    - name: Save uptime fact
+      set_fact:
+        uptime: "{{ uptime_result.stdout }}"
+
+    - name: Get free memory (MB)
+      command: awk '/MemFree/ {print $2/1024}' /proc/meminfo
+      register: memfree_result
+
+    - name: Save free memory fact
+      set_fact:
+        ansible_memfree_mb: "{{ memfree_result.stdout | int }}"
+
+- name: Generate report from web servers and put in the reporting server
+  hosts: reporting_server
+  tasks:
+    - name: Generate Report
+      template:
+        src: templates/report.csv.j2
+        dest: /tmp/report.csv
+      run_once: yes
+
+
+
+not fully worked!!!
+
+
+Another solution:
+
+Update the report.csv.j2 template
+
+cd ~/playbooks/report
+vi templates/report.csv.j2
+Add below given code
+
+hostname, free memory, uptime
+{% for host in groups['web'] %}
+{{ host }}, {{ hostvars[host]['ansible_memfree_mb'] }}, {{ hostvars[host]['ansible_uptime_seconds'] }}
+{% endfor %}
+Update generate-report.yml playbook
+
+vi generate-report.yml
+Add below given code
+
+- hosts: all
+  gather_facts: yes
+  tasks:
+    - template:
+        src: report.csv.j2
+        dest: /tmp/report.csv
+      delegate_to: reporting_server
+      run_once: yes
+
+
+Task 5:
+
+
+We have 2 environments distributed geographically and a DNS server in each. We would like to generate a file on each of these DNS servers with the list of the hosts and IPs in their respective regions.
+
+
+Navigate to the ~/playbooks/dns directory. Create a template file that prints the hostname and IP address of each host in new line and upload that to the respective server. A sample report is given at sample_hosts.txt. The report must be generated and placed on the respective DNS server at /tmp/hosts.txt. Write playbook at generate-hosts-ips.yml. Note that these servers are not up yet. So don't try to connect to them or gather facts. Use the details available in the inventory file to achieve this.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+example of hosts file:
+
+[thor@ansible-controller dns]$ cat sample_hosts.txt
+host001 192.168.1.1
+host002 192.168.1.2
+host003 192.168.1.3
+
+inventory file has two groups!!!!! so one option is add additionl group to the inventory file [dns]: which will inlcude america and asia .... or just print with two for
+
+[thor@ansible-controller dns]$ cat inventory 
+dns_server_america ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd ansible_user=root
+dns_server_asia ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd ansible_user=root
+
+[america]
+web0001 ansible_hostname=web0001.company.com ansible_host=10.1.1.101 ansible_ssh_pass=Passw0rd
+web0002 ansible_hostname=web0002.company.com ansible_host=10.1.1.102 ansible_ssh_pass=Passw0rd
+web0003 ansible_hostname=web0003.company.com ansible_host=10.1.1.103 ansible_ssh_pass=Passw0rd
+web0004 ansible_hostname=web0004.company.com ansible_host=10.1.1.104 ansible_ssh_pass=Passw0rd
+web0005 ansible_hostname=web0005.company.com ansible_host=10.1.1.105 ansible_ssh_pass=Passw0rd
+
+[asia]
+web2001 ansible_hostname=web2001.company.com ansible_host=10.1.1.201 ansible_ssh_pass=Passw0rd
+web2002 ansible_hostname=web2002.company.com ansible_host=10.1.1.202 ansible_ssh_pass=Passw0rd
+web2003 ansible_hostname=web2003.company.com ansible_host=10.1.1.203 ansible_ssh_pass=Passw0rd
+web2004 ansible_hostname=web2004.company.com ansible_host=10.1.1.204 ansible_ssh_pass=Passw0rd
+web2005 ansible_hostname=web2005.company.com ansible_host=10.1.1.205 ansible_ssh_pass=Passw0rd
+
+created hosts.j2 file with:
+
+[thor@ansible-controller templates]$ cat hosts.j2 
+# eg: host001 192.168.1.1
+
+{% for host in groups['america'] %}
+{{ host }} {{ hostvars[host].ansible_host }}
+{% endfor %}
+
+{% for host in groups['asia'] %}
+{{ host }} {{ hostvars[host].ansible_host }}
+{% endfor %}
+
+and create yml (no need gather facts cause we read from the inventory file):
+
+
+[thor@ansible-controller dns]$ cat generate-hosts-ips.yml 
+# generate-hosts-ips.yml
+[thor@ansible-controller dns]$ cat generate-hosts-ips.yml 
+# generate-hosts-ips.yml
+
+- name: Generate hosts/IP report from inventory
+  hosts: dns_server_america,dns_server_asia
+  gather_facts: no
+
+  tasks:
+    - name: Upload hosts/IP report to DNS server
+      template:
+        src: templates/hosts.j2
+        dest: /tmp/hosts.txt
+      run_once: yes
+
+run:
+
+[thor@ansible-controller dns]$ ansible-playbook -i inventory generate-hosts-ips.yml -vv
+ansible-playbook [core 2.14.17]
+  config file = /home/thor/playbooks/dns/ansible.cfg
+  configured module search path = ['/home/thor/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.9/site-packages/ansible
+  ansible collection location = /home/thor/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.9.20 (main, Sep  9 2024, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-2)] (/usr/bin/python3)
+  jinja version = 3.1.2
+  libyaml = True
+Using /home/thor/playbooks/dns/ansible.cfg as config file
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: generate-hosts-ips.yml **************************************************************************************************************************************************
+1 plays in generate-hosts-ips.yml
+
+PLAY [Generate hosts/IP report from inventory] ************************************************************************************************************************************
+
+TASK [Upload hosts/IP report to DNS server] ***************************************************************************************************************************************
+task path: /home/thor/playbooks/dns/generate-hosts-ips.yml:8
+changed: [dns_server_america] => {"ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"}, "changed": true, "checksum": "83a9ce9fe70e8c8080774e8d864e356f81a9b3fa", "dest": "/tmp/hosts.txt", "gid": 0, "group": "root", "md5sum": "bc87cc85606e4c0ca582056eb09a21d9", "mode": "0644", "owner": "root", "size": 219, "src": "/root/.ansible/tmp/ansible-tmp-1784050657.7972808-3175-272790945196328/source", "state": "file", "uid": 0}
+
+PLAY RECAP ************************************************************************************************************************************************************************
+dns_server_america         : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+Another solution with groups:
+
+
+
+Update the hosts.j2 template
+
+cd ~/playbooks/dns
+vi templates/hosts.j2
+Add below given code
+
+# eg: host001 192.168.1.1
+{% for host in groups[GROUP_NAME] %}
+{{ host }} {{ hostvars[host]['ansible_host'] }}
+{% endfor %}
+Update generate-hosts-ips.yml playbook
+
+vi generate-hosts-ips.yml
+Add below given code
+
+- name: Generate dns hosts files on americas servers
+  hosts: dns_server_america
+  gather_facts: no
+  tasks:
+    - template:
+        src: templates/hosts.j2
+        dest: /tmp/hosts.txt
+      vars:
+        GROUP_NAME: america
+
+- name: Generate dns hosts files on asia servers
+  hosts: dns_server_asia
+  gather_facts: no
+  tasks:
+    - template:
+        src: templates/hosts.j2
+        dest: /tmp/hosts.txt
+      vars:
+        GROUP_NAME: asia
+
+
+
+

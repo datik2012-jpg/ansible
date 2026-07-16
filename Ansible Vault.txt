@@ -1,0 +1,200 @@
+Unencrypted inventory:  
+Lists two hosts (web1 and web2) with IPs and plain-text SSH passwords.
+
+bash
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd
+Encryption command:
+
+bash
+ansible-vault encrypt inventory
+This command encrypts the file using AES256.
+
+Encrypted output:  
+Begins with $ANSIBLE_VAULT;1.1;AES256 followed by hexadecimal data — the encrypted version of the inventory file.
+
+💡 Key concept
+Ansible Vault protects credentials and secrets by encrypting files so they can’t be read without a password. It’s ideal for securing variables, playbooks, or inventories that contain sensitive information.
+
+
+First command (error):
+
+bash
+ansible-playbook playbook.yml -i inventory
+❌ Fails because the inventory file is encrypted — Ansible cannot decrypt it automatically.
+Error:
+
+Code
+Decryption failed on inventory.txt
+Second command (success):
+
+bash
+ansible-playbook playbook.yml -i inventory --ask-vault-pass
+✅ Works correctly by prompting for the vault password before execution.
+Output shows successful playbook execution:
+
+Code
+PLAY [Test Template playbook]
+TASK [Gathering Facts]
+ok: [target1]
+💡 Insight
+When using Ansible Vault, any encrypted file (inventory, variables, or playbooks) requires a password for decryption. You can either:
+
+Use --ask-vault-pass to enter it interactively.
+
+Or use --vault-password-file to automate decryption.
+
+
+
+develop third party code which retrieves password to the vault and use in for ansible:
+
+ansible-playbook playbook.yml -i inventory --vault-password-file ~/.vault_pass.py
+
+playbook.yml → The playbook to execute.
+
+-i inventory → Specifies the inventory file (which may be encrypted).
+
+--vault-password-file ~/.vault_pass.py → Points to a script or file that automatically provides the vault password, removing the need for manual entry.
+
+💡 Why it matters
+This approach is ideal for CI/CD pipelines or automated deployments, where interactive password prompts aren’t possible.
+The file ~/.vault_pass.py can either:
+
+Contain the password directly (less secure), or
+
+Dynamically return it via a script (recommended).
+
+
+
+Command breakdown
+ansible-vault view inventory
+
+Opens and displays the contents of an encrypted file (here, inventory) in a readable form.
+
+Requires the vault password for decryption.
+
+Useful for checking or verifying sensitive data without editing it.
+
+ansible-vault create inventory
+
+Creates a new encrypted file named inventory.
+
+Opens the default text editor so you can add sensitive information directly.
+
+Once saved, the file is automatically encrypted using AES256.
+
+💡 Practical tip
+These commands are part of a secure workflow for handling credentials and secrets in Ansible. You can also use:
+
+ansible-vault edit to modify encrypted files safely.
+
+ansible-vault rekey to change the encryption password.
+
+///////////////////////////////////////LAB ////////////////////////
+
+Which of the following is the valid syntax to create new encrypted data file:
+
+A:ansible-vault create foo.yml
+
+
+
+Core Commands
+Command	Purpose
+ansible-vault create	Create a new encrypted file interactively.
+ansible-vault edit	Open and modify an existing encrypted file securely.
+ansible-vault view	Display the contents of an encrypted file without editing.
+ansible-vault encrypt	Encrypt one or more existing files.
+ansible-vault decrypt	Decrypt encrypted files back to plain text.
+ansible-vault rekey	Change the password used to encrypt files.
+
+
+🔐 Password Handling Options
+Option	Description
+--ask-vault-pass	Prompt for the vault password interactively.
+--vault-password-file <path>	Use a file or script to supply the password automatically.
+--vault-id <label>@source	Manage multiple vaults with different passwords (e.g., dev@prompt, prod@file).
+
+
+🧩 Integration with Playbooks
+You can use vault options directly in playbook commands:
+
+bash
+ansible-playbook site.yml --ask-vault-pass
+ansible-playbook site.yml --vault-id dev@prompt
+💡 Best Practices
+Keep vault passwords outside version control.
+
+Use --vault-id for multi-environment setups.
+
+Rotate passwords regularly with rekey.
+
+Task :
+
+Which of these sub-commands is used with ansible-vault if you wish to change your password for a vault-encrypted file/files ?
+
+answer: rekey
+
+
+Task 4:
+
+
+Which of these sub-commands is used with ansible-vault if you wish to change your password for a vault-encrypted file/files ?
+
+[thor@ansible-controller ~]$ cat /home/thor/playbooks/vault_pass.txt
+AN$1Bl3_V@u7t_i$_AWEs0m3
+
+file which we should decrypt:
+
+[thor@ansible-controller ~]$ cat /home/thor/playbooks/decrypt_me.yml
+$ANSIBLE_VAULT;1.1;AES256
+36376634626565343564313733323162616564383138336232626239323930636364623636643636
+6535333261383465346137656236366133383136303634660a383364316566356534333736633231
+66356235653362343362323638303035633739303237363138646131666663343764366637646638
+3130323931326437650a333262386538343739666434313034343935376164656563303865316562
+64316634613462343163646463613838366563333561636666643439353238663437373762643232
+3239633463363262656464356432666637616465363866653438
+
+command:
+
+ansible-vault decrypt decrypt_me.yml --vault-password-file vault_pass.txt
+
+
+[thor@ansible-controller playbooks]$ ls
+copy_secrets.yml  decrypt_me.yml  inventory  secrets_file.txt  vault_pass.txt
+[thor@ansible-controller playbooks]$ ansible-vault decrypt decrypt_me.yml --vault-password-file vault_pass.txt
+Decryption successful
+
+
+Now we can see the content of the file:
+
+[thor@ansible-controller playbooks]$  cat /home/thor/playbooks/decrypt_me.yml
+answer_of_mystery_to_universe: 42
+
+
+Task 5:
+
+Write a playbook to copy the secret file located at /home/thor/playbooks/secrets_file.txt to all remote hosts at location /root/.secrets_file.txt
+
+Your playbook must be located at: /home/thor/playbooks/copy_secrets.yml
+Remote hosts are placed in inventory: /home/thor/playbooks/inventory
+The secret file is encrypted, please use vault password from /home/thor/playbooks/vault_pass.txt while you execute the playbook.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+
+Edit /etc/ansible/ansible.cfg file and make sure to set vault_password_file = /home/thor/playbooks/vault_pass.txt. Also make sure /home/thor/playbooks/vault_pass.txt file permissions are 640
+
+Please use the following YAML file and place it under ~/playbooks/copy_secrets.yml:
+
+---
+
+- hosts: all
+  tasks:
+    - name: copy a secret file to remote hosts
+      copy:
+        src: secrets_file.txt
+        dest: /root/.secrets_file.txt
+
+Because you set vault_password_file in ansible.cfg, Ansible will automatically decrypt secrets_file.txt when the playbook runs.
