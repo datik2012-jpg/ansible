@@ -1,0 +1,556 @@
+Task 1:
+
+
+
+Add an entry for node00 in ~/playbooks/inventory file. IP address of node00 host is 172.20.1.100 and SSH user and password is root and Passw0rd. We have a list of users in ~/playbooks/data/users.yml file. There are two groups in there admins and developers which have list of different users. Create a playbook ~/playbooks/add_users.yml to perform below given tasks on node00 node:
+
+
+a. Add all users given in users.yml on node00.
+
+b. Make sure home directory for all users under developers group is /var/www and for admins it should be default.
+
+c. Set password d3v3l0p3r for all users under developers group and adm$n$ for users under admins group. Make sure to use Ansible vault to encrypt the passwords, use ~/playbooks/secrets/vault.txt file as vault secret file.
+
+d. All users under admins group must be added as sudo user, for that simply make them member of wheel group on node00
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+inventory file:
+
+
+[thor@ansible-controller ~]$ cat ~/playbooks/inventory 
+node01 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+node02 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd
+
+added node00:
+
+[thor@ansible-controller playbooks]$ cat inventory 
+node00 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+node01 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+node02 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd
+
+users yml has:
+
+[thor@ansible-controller playbooks]$ cat ~/playbooks/data/users.yml
+admins:
+  - rob
+  - david
+  - joy
+
+developers:
+  - tim
+  - ray
+
+
+create vault text file for passwords and put there:
+
+mkdir -p ~/playbooks/secrets
+echo "myvaultpassword" > ~/playbooks/secrets/vault.txt
+chmod 600 ~/playbooks/secrets/vault.txt
+
+
+admin_password: "adm$n$"
+developer_password: "d3v3l0p3r"
+
+
+[thor@ansible-controller playbooks]$ cat ~/playbooks/secrets/vault.txt
+admin_password: "adm$n$"
+developer_password: "d3v3l0p3r"
+
+run:
+
+chmod 600 ~/playbooks/secrets/vault.txt
+This means:
+
+Owner: read + write
+
+Group: no access
+
+Others: no access
+
+need to create passwords.yml with the same comntent:
+
+admin_password: "adm$n$"
+developer_password: "d3v3l0p3r"
+
+RUN encrypt:
+
+[thor@ansible-controller playbooks]$ ansible-vault encrypt ~/playbooks/secrets/passwords.yml \
+  --encrypt-vault-id default \
+  --vault-password-file ~/playbooks/secrets/vault.txt
+Encryption successful
+
+
+created next yml file:
+
+
+[thor@ansible-controller playbooks]$ cat add_users.yml 
+---
+[thor@ansible-controller playbooks]$ cat add_users.yml 
+---
+
+- name: Playbook add users
+  hosts: node00
+  become: yes
+  vars_files:
+    - data/users.yml        #use users file
+    - secrets/passwords.yml #use encrypted password file
+  tasks:
+    - name: Print all users what we have in the yml
+      debug:
+        msg: "Print from the yml {{ admins }} and {{ developers }}"
+    - name: Ensure /var/www exists
+      file:
+        path: /var/www
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Hash admin password
+      set_fact:
+        admin_pass_hash: "{{ admin_password | password_hash('sha512') }}"
+
+    - name: Hash developer password
+      set_fact:
+        developer_pass_hash: "{{ developer_password | password_hash('sha512') }}"
+
+    - name: Add Admins group
+      user:
+        name: "{{ item }}"
+        state: present
+        groups: wheel
+        password: "{{ admin_pass_hash }}"
+      loop: "{{ admins }}"
+
+    - name: Create developers group
+      group:
+        name: developers
+        state: present
+
+    - name: Add all Developers
+      user:
+        name: "{{ item }}"
+        password: "{{ developer_pass_hash }}"
+        groups: developers
+        home: "/var/www/{{ item }}"
+        state: present
+        create_home: yes
+      loop: "{{ developers }}"
+
+
+
+run:  ansible-playbook add_users.yml -i inventory --vault-id default@~/playbooks/secrets/vault.txt
+
+
+
+Additional solution is optional:
+
+node00 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+node01 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+node02 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd
+
+
+Create vault password for admins and developers
+ansible-vault encrypt_string 'd3v3l0p3r'
+ansible-vault encrypt_string 'adm$n$'
+
+
+##### Update inventory as per below given code
+
+node00 ansible_host=172.20.1.100 ansible_user=root ansible_ssh_pass=Passw0rd
+node01 ansible_host=172.20.1.101 ansible_user=root ansible_ssh_pass=Passw0rd
+node02 ansible_host=172.20.1.102 ansible_user=root ansible_ssh_pass=Passw0rd
+Create vault password for admins and developers
+ansible-vault encrypt_string 'd3v3l0p3r'
+ansible-vault encrypt_string 'adm$n$'
+Create add_users.yml playbook and add below given code
+---
+- hosts: node00
+  gather_facts: no
+  vars:
+    admin_pass: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          64396331383031323064343432353935323334626437666531313633343232353936323738313337
+          3436666266356534343934653132363866626231636663610a663731653135316132613831323463
+          61663331626236303163306234353632643231353036323833373865346531306331613761356665
+          3365653631656530310a626332643537333861653335643836646566323934653362333364386137
+          3731
+    developer_pass: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          63613761313339646563643435326633313066303030666266393232646137343065376530363933
+          3034353231653239656332363661346337353836666130370a613366646565373431343932633337
+          34666430376264386137326632626637383630383262333330376661656266393665386337326465
+          3165366632623865660a363866653237386163653636373764626334303631333062623762396235
+          6630
+  tasks:
+    - name: Include user.yml
+      include_vars:
+        file: data/users.yml
+    - name: Creating admins
+      user:
+        name: "{{ item }}"
+        password: "{{ admin_pass | string | password_hash('sha512') }}"
+        groups: wheel
+      with_items: "{{ admins | list }}"
+
+    - name: creating developers
+      user:
+        name: "{{ item }}"
+        password: "{{ developer_pass | string | password_hash('sha512') }}"
+        home: /var/www
+      with_items: "{{ developers | list }}"
+
+
+Task 2:
+
+
+Using a playbook ~/playbooks/apache.yml (create new if doesn't exist) perform the below given tasks on node01:
+
+
+a. Install httpd and php packages.
+
+b. Change default document root of Apache to /var/www/html/myroot in default Apache config /etc/httpd/conf/httpd.conf. Make sure /var/www/html/myroot path exists.
+
+c. There is a template ~/playbooks/templates/phpinfo.php.j2 on ansible controller node. Copy this template to Apache document root on node01 host as phpinfo.php file and make sure owner and group owner is apache user.
+
+d. Start and enable httpd service.
+
+e. Add rule in firewalld public zone to open http port 80 for public access so that phpinfo.php page is accessible in browser, also rule should be permanent.
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+create yml file:
+
+
+[thor@ansible-controller ~]$ cat ~/playbooks/apache.yml
+---
+
+- name: Playbook for Installation and Config 
+  hosts: node01
+  become: yes
+  tasks:
+    - name: Install httpd and php
+      yum:
+        name:
+          - httpd
+          - php
+        state: present
+
+    - name: Ensure path exist /var/www/html/myroot
+      file:
+        path: /var/www/html/myroot
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Update Apache DocumentRoot
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^DocumentRoot\s+"?[^"]+"?'
+        replace: 'DocumentRoot "/var/www/html/myroot"'
+
+    - name: Update Apache <Directory> block
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^<Directory\s+"?[^"]+"?>'
+        replace: '<Directory "/var/www/html/myroot">'
+
+    - name: Deploy phpinfo.php to Apache document root
+      template:
+        src: phpinfo.php.j2
+        dest: /var/www/html/myroot/phpinfo.php
+        owner: apache
+        group: apache
+        mode: '0644'
+    - name: Enable and start httpd today
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+ 
+    - name: Allow HTTP service in firewalld (public zone, permanent)
+      firewalld:
+        service: http
+        zone: public
+        permanent: yes
+        state: enabled
+
+    - name: Reload firewalld to apply changes
+      firewalld:
+        state: reloaded
+
+
+run: ansible-playbook -i inventory apache.yml -vv
+
+
+another option solution is:
+
+
+
+---
+- hosts: node01
+  tasks:
+    - name: Install httpd and php packages
+      yum:
+        name: httpd, php
+        state: present
+
+    - name: Create doc root
+      file:
+        path: /var/www/html/myroot
+        state: directory
+        owner: apache
+        group: apache
+
+    - name: change document root
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: 'DocumentRoot "/var/www/html"'
+        replace: 'DocumentRoot "/var/www/html/myroot"'
+
+    - name: copy template
+      template:
+        src: phpinfo.php.j2
+        dest: /var/www/html/myroot/phpinfo.php
+        owner: apache
+        group: apache
+
+    - name: Start service httpd
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+
+    - name: open port httpd
+      firewalld:
+        port: 80/tcp
+        state: enabled
+        zone: public
+        permanent: yes
+
+
+Task 3:
+
+
+We have php, nginx and mariadb installed on node02 and have a DB mydb created there. The user to connect to DB is myuser and password is mypassword. Create a playbook ~/playbooks/database.yml to perform below given tasks:
+
+
+a. Start nginx and mariadb services.
+
+b. Delete all default files/directories from nginx document root /usr/share/nginx/html/
+
+c. Download a zip archive from https://github.com/indercodes/ansible-1100-mock-nginx/raw/refs/heads/master/index.php.zip and extract it in /usr/share/nginx/html/
+
+d. The archive have an index.php file to check DB connectivity. Replace some required DB details in the file using replace or lineinfile module:
+
+$database = "database"; to $database = "mydb";
+
+$username = "user"; to $username = "myuser";
+
+$password = "password"; to $password = "mypassword";
+
+e. Restart nginx after making required changes.
+
+Note: Validation may take some time depending on the complexity and structure of the
+
+
+
+search how to delete file:
+
+
+[thor@ansible-controller playbooks]$ ansible-doc -l | grep file
+ansible.builtin.blockinfile                                                                      Insert/update/remove a text block surr...
+ansible.builtin.file                                                                             Manage fil...         
+ansible.builtin.find                                                                             Return a list of files base...
+ansible.builtin.get_url                                                                          Downloads files from HTTP,...
+ansible.builtin.include_vars                                                                     Load variables from files, dyn...
+ansible.builtin.lineinfile                                                                       Mana...               
+ansible.builtin.replace                                                                          Replace all instances of a particular string in a file using a back-referen...
+ansible.builtin.stat 
+
+>ansible-doc ansible.builtin.file 
+
+- name: Recursively remove directory
+  ansible.builtin.file:
+    path: /etc/foo
+    state: absent
+
+and updated the database.yml to have:
+
+[thor@ansible-controller playbooks]$ cat database.yml 
+---
+- name: DB Playbook
+  hosts: node02
+  become: yes
+  tasks:
+    - name: Start service nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Start service mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Delete add default files and directories
+      ansible.builtin.file:
+        path: /usr/share/nginx/html
+        state: absent
+
+next step is:
+
+c. Download a zip archive from https://github.com/indercodes/ansible-1100-mock-nginx/raw/refs/heads/master/index.php.zip and extract it in /usr/share/nginx/html/
+
+ansible-doc -l | grep url
+ansible-doc -l | grep download
+ansible-doc -l | grep http
+
+ansible.builtin.get_url
+
+and for unarchive search for:
+
+ansible-doc -l | grep archive
+ansible-doc -l | grep zip
+ansible-doc -l | grep unarchive
+
+
+
+updated database.yml to have:
+
+[thor@ansible-controller playbooks]$ cat database.yml 
+---
+- name: DB Playbook
+  hosts: node02
+  become: yes
+  tasks:
+    - name: Start service nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Start service mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Delete add default files and directories
+      ansible.builtin.file:
+        path: /usr/share/nginx/html
+        state: absent
+
+    - name: Download index.php.zip from GitHub
+      get_url:
+        url: https://github.com/indercodes/ansible-1100-mock-nginx/raw/refs/heads/master/index.php.zip
+        dest: /tmp/index.php.zip
+        mode: '0644'
+
+    - name: Extract ZIP archive into nginx document root
+      unarchive:
+        src: /tmp/index.php.zip
+        dest: /usr/share/nginx/html/
+        remote_src: yes
+
+for:
+
+
+d. The archive have an index.php file to check DB connectivity. Replace some required DB details in the file using replace or lineinfile module:
+
+$database = "database"; to $database = "mydb";
+
+$username = "user"; to $username = "myuser";
+
+$password = "password"; to $password = "mypassword";
+
+
+search: ansible-doc -l | grep replace  or ansible-doc -l | grep line
+
+
+and add to the yml:
+
+- name: Replace database name
+  replace:
+    path: /usr/share/nginx/html/index.php
+    regexp: '\$database\s*=\s*"database";'
+    replace: '$database = "mydb";'
+
+- name: Replace username
+  replace:
+    path: /usr/share/nginx/html/index.php
+    regexp: '\$username\s*=\s*"user";'
+    replace: '$username = "myuser";'
+
+- name: Replace password
+  replace:
+    path: /usr/share/nginx/html/index.php
+    regexp: '\$password\s*=\s*"password";'
+    replace: '$password = "mypassword";'
+
+full yaml is:
+
+[thor@ansible-controller playbooks]$ cat database.yml 
+---
+- name: DB Playbook
+  hosts: node02
+  become: yes
+  tasks:
+    - name: Start service nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Start service mariadb
+      service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Delete add default files and directories
+      ansible.builtin.file:
+        path: /usr/share/nginx/html
+        state: absent
+
+    - name: Download index.php.zip from GitHub
+      get_url:
+        url: https://github.com/indercodes/ansible-1100-mock-nginx/raw/refs/heads/master/index.php.zip
+        dest: /tmp/index.php.zip
+        mode: '0644'
+
+    - name: Extract ZIP archive into nginx document root
+      unarchive:
+        src: /tmp/index.php.zip
+        dest: /usr/share/nginx/html/
+        remote_src: yes
+    - name: Replace database name
+      replace:
+        path: /usr/share/nginx/html/index.php
+        regexp: '\$database\s*=\s*"database";'
+        replace: '$database = "mydb";'
+
+    - name: Replace username
+      replace:
+        path: /usr/share/nginx/html/index.php
+        regexp: '\$username\s*=\s*"user";'
+        replace: '$username = "myuser";'
+
+    - name: Replace password
+      replace:
+        path: /usr/share/nginx/html/index.php
+        regexp: '\$password\s*=\s*"password";'
+        replace: '$password = "mypassword";'
+   - name: Restart service
+     service:
+       name: nginx
+       state: restarted
+       enabled: yes
+
+
+

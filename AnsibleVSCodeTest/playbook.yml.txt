@@ -1,0 +1,8 @@
+---
+- name: Simple Ansible Task
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Debug message
+      debug:
+        msg: "Hello from Ansible!"        

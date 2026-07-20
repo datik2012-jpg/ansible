@@ -1,0 +1,472 @@
+This setup demonstrates both static and dynamic inventory approaches in Ansible.
+
+Example:
+
+this is a static inventory file:
+
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd
+
+[web_servers]
+web1
+web2
+
+inventory.py:
+
+
+#!/usr/bin/env python
+
+import json
+import argparse
+
+# Get inventory data from source - CMDB or any other API
+def get_inventory_data():
+    return {
+        "web_servers": {
+            "hosts": ["web1", "web2"]
+        },
+        "_meta": {
+            "hostvars": {
+                "web1": {
+                    "ansible_host": "172.20.1.100",
+                    "ansible_ssh_pass": "Passw0rd"
+                },
+                "web2": {
+                    "ansible_host": "172.20.1.101",
+                    "ansible_ssh_pass": "Passw0rd"
+                }
+            }
+        }
+    }
+
+# Default main function
+if __name__ == "__main__":
+    read_cli_args()
+    inventory_data = get_inventory_data()
+    if args.list:
+        print(json.dumps(inventory_data))
+
+
+
+Ansible Commands
+bash
+$ ansible-playbook playbook.yml -i inventory.txt
+$ ansible-playbook playbook.yml -i inventory.py
+
+
+
+This demonstrates how a dynamic inventory script can return either all hosts and groups (--list) or details for a specific host (--host <hostname>).
+
+
+
+Command 1: List all inventory
+bash
+$ ./inventory.py --list
+Output:
+
+json
+{
+    "web_servers": {
+        "hosts": [
+            "web1",
+            "web2"
+        ]
+    },
+    "_meta": {
+        "hostvars": {
+            "web2": {
+                "ansible_host": "172.20.1.101",
+                "ansible_ssh_pass": "Passw0rd"
+            },
+            "web1": {
+                "ansible_host": "172.20.1.100",
+                "ansible_ssh_pass": "Passw0rd"
+            }
+        }
+    }
+}
+🧠 Command 2: Show host-specific variables
+bash
+$ ./inventory.py --host web1
+Output:
+
+json
+{
+    "ansible_host": "172.20.1.100",
+    "ansible_ssh_pass": "Passw0rd"
+}
+
+
+There are repo for in the githaub for DYNAMIC Inventory file : like EC2 Inventory script and etc...
+
+
+
+Here’s the extracted content from the image titled EC2 Inventory Script, which demonstrates how to configure AWS credentials and run an Ansible playbook using a dynamic EC2 inventory:
+
+🧩 Environment Variable Setup
+bash
+$ export AWS_ACCESS_KEY_ID=AK123
+$ export AWS_SECRET_ACCESS_KEY_ID=ABC123
+These commands set your AWS credentials as environment variables so Ansible can authenticate with AWS when running the EC2 dynamic inventory script.
+
+⚙️ Run Ansible Playbook
+bash
+$ ansible-playbook playbook.yml -i ec2.py
+This command runs the playbook playbook.yml using the dynamic inventory script ec2.py, which queries AWS for EC2 instances and automatically populates the inventory.
+
+
+///////////////////LAB Dynamic Inventory //////////
+
+
+How many static inventory files do you see in the default ansible directory: /etc/ansible/ and ~/playbooks/ directory?
+
+A: run ls and check  
+
+
+Explore the script dynamic_web.py. How many hosts do you see in group web?
+
+The inventory script is located at ~/playbooks
+
+
+
+run cat to see the .py content:
+
+
+Explore the script dynamic_web.py. How many hosts do you see in group web?
+
+The inventory script is located at ~/playbooks
+
+
+Answer: there 2 hosts in the web check it:
+
+
+[thor@ansible-controller ~]$ cat ~/playbooks/dynamic_web.py 
+#!/usr/bin/env python3
+
+'''
+Example custom dynamic inventory script for Ansible, in Python 3.
+'''
+
+import os
+import sys
+import argparse
+import json
+
+class ExampleInventory(object):
+
+    def __init__(self):
+        self.inventory = {}
+        self.read_cli_args()
+
+        # Called with `--list`.
+        if self.args.list:
+            self.inventory = self.example_inventory()
+        # Called with `--host [hostname]`.
+        elif self.args.host:
+            # Not implemented, since we return _meta info `--list`.
+            self.inventory = self.empty_inventory()
+        # If no groups or vars are present, return an empty inventory.
+        else:
+            self.inventory = self.empty_inventory()
+
+        print(json.dumps(self.inventory))  # Use print function for Python 3
+
+    # Example inventory for testing.
+    def example_inventory(self):
+        return {
+            'web': {
+                'hosts': ['172.20.1.100', '172.20.1.101'],
+                'vars': {
+                    'ansible_ssh_user': 'root',
+                    'ansible_ssh_pass': 'Passw0rd'
+                }
+            },
+            '_meta': {
+                'hostvars': {
+                    '172.20.1.100': {
+                        'host_specific_var': 'foo'
+                    },
+                    '172.20.1.101': {
+                        'host_specific_var': 'bar'
+                    }
+                }
+            }
+        }
+
+    # Empty inventory for testing.
+    def empty_inventory(self):
+        return {'_meta': {'hostvars': {}}}
+
+    # Read the command line args passed to the script.
+    def read_cli_args(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--list', action='store_true')
+        parser.add_argument('--host', action='store')
+        self.args = parser.parse_args()
+
+# Get the inventory.
+ExampleInventory()
+
+
+
+Explore the script dynamic_custom.py. How many hosts do you see in the inventory?
+
+The inventory script is located at ~/playbooks
+
+Answer : 3
+
+
+
+hor@ansible-controller ~]$ cat ~/playbooks/dynamic_custom.py 
+#!/usr/bin/env python3
+
+'''
+Example custom dynamic inventory script for Ansible, in Python 3.
+'''
+
+import os
+import sys
+import argparse
+import json
+
+class ExampleInventory(object):
+
+    def __init__(self):
+        self.inventory = {}
+        self.read_cli_args()
+
+        # Called with `--list`.
+        if self.args.list:
+            self.inventory = self.example_inventory()
+        # Called with `--host [hostname]`.
+        elif self.args.host:
+            # Not implemented, since we return _meta info `--list`.
+            self.inventory = self.empty_inventory()
+        # If no groups or vars are present, return an empty inventory.
+        else:
+            self.inventory = self.empty_inventory()
+
+        print(json.dumps(self.inventory))  # Use print function for Python 3
+
+    # Example inventory for testing.
+    def example_inventory(self):
+        return {
+            'group': {
+                'hosts': ['172.20.1.101', '172.20.1.102', '172.20.1.103'],
+                'vars': {
+                    'ansible_ssh_user': 'root',
+                    'ansible_ssh_pass': 'Passw0rd'
+                }
+            },
+            '_meta': {
+                'hostvars': {
+                    '172.20.1.101': {
+                        'host_specific_var': 'custom1'
+                    },
+                    '172.20.1.102': {
+                        'host_specific_var': 'custom2'
+                    },
+                    '172.20.1.103': {
+                        'host_specific_var': 'custom3'
+                    }
+                }
+            }
+        }
+
+    # Empty inventory for testing.
+    def empty_inventory(self):
+        return {'_meta': {'hostvars': {}}}
+
+    # Read the command line args passed to the script.
+    def read_cli_args(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--list', action='store_true')
+        parser.add_argument('--host', action='store')
+        self.args = parser.parse_args()
+
+# Get the inventory.
+ExampleInventory()
+
+
+Task 5:
+
+Run a simple ansible play using the ping module against the hosts using the inventory script dynamic_custom.py.
+
+
+The playbook should be called ping.yml created under ~/playbooks
+
+Note: Validation may take some time depending on the complexity and structure of the playbook.
+
+
+
+
+created ping.yml:
+
+---
+- hosts: all
+  tasks:
+    - ping:
+
+
+
+run:  ansible-playbook ping.yml -i dynamic_custom.py
+
+
+
+[thor@ansible-controller playbooks]$ ./dynamic_custom.py --list
+{"group": {"hosts": ["172.20.1.101", "172.20.1.102", "172.20.1.103"], "vars": {"ansible_ssh_user": "root", "ansible_ssh_pass": "Passw0rd"}}, "_meta": {"hostvars": {"172.20.1.101": {"host_specific_var": "custom1"}, "172.20.1.102": {"host_specific_var": "custom2"}, "172.20.1.103": {"host_specific_var": "custom3"}}}}
+
+
+
+Task 6:
+
+
+We have created a dummy inventory script called ec2.py under ~/playbooks/. This script emulates the scenario of getting ec2 instance from an aws account.
+
+Using ansible-inventory with the ec2.py script, what is the region for the host 172.20.1.109 ?
+
+
+Note when you run we do not pass --list but :ansible-playbook ~/playbooks/ping.yml -i ec2.py
+
+
+Why does Ansible call ec2.py --list even if I did not pass --list?
+
+Because Ansible ALWAYS calls dynamic inventory scripts with --list internally.
+
+This is how Ansible works.
+This is built into Ansible’s engine.
+
+You never see it, but Ansible does it automatically.
+
+example ec2.py:
+
+
+[thor@ansible-controller playbooks]$ cat ec2.py 
+#!/usr/bin/env python3
+
+'''
+Example custom dynamic inventory script for Ansible, in Python 3.
+'''
+
+import os
+import sys
+import argparse
+import json
+
+class ExampleInventory(object):
+
+    def __init__(self):
+        self.inventory = {}
+        self.read_cli_args()
+
+        # Called with `--list`.
+        if self.args.list:
+            self.inventory = self.example_inventory()
+        # Called with `--host [hostname]`.
+        elif self.args.host:
+            # Not implemented, since we return _meta info `--list`.
+            self.inventory = self.empty_inventory()
+        # If no groups or vars are present, return an empty inventory.
+        else:
+            self.inventory = self.empty_inventory()
+
+        print(json.dumps(self.inventory))  # Use print function for Python 3
+
+    # Example inventory for testing.
+    def example_inventory(self):
+        return {
+            'group': {
+                'hosts': ['172.20.1.109', '172.20.1.110'],
+                'vars': {
+                    'ansible_ssh_user': 'root',
+                    'ansible_ssh_pass': 'Passw0rd',
+                    'ec2_state': 'Running'
+                }
+            },
+            '_meta': {
+                'hostvars': {
+                    '172.20.1.109': {
+                        'ec2_region': 'ca-central-1'
+                    },
+                    '172.20.1.110': {
+                        'ec2_region': 'us-east-1'
+                    }
+                }
+            }
+        }
+
+    # Empty inventory for testing.
+    def empty_inventory(self):
+        return {'_meta': {'hostvars': {}}}
+
+    # Read the command line args passed to the script.
+    def read_cli_args(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--list', action='store_true')  #set True if called --list and None if not called --host . and an opposite
+        parser.add_argument('--host', action='store')
+        self.args = parser.parse_args()
+
+# Get the inventory.
+ExampleInventory()
+
+
+Answer: 'ec2_region': 'ca-central-1'
+
+Note: this part
+
+"_meta": {
+  "hostvars": {
+    "172.20.1.109": { "ec2_region": "ca-central-1" },
+    "172.20.1.110": { "ec2_region": "us-east-1" }
+  }
+}
+
+
+should be used when:
+
+You simply reference them like any other variable:
+
+yaml
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: Show EC2 region for each host
+      debug:
+        msg: "Region for {{ inventory_hostname }} is {{ ec2_region }}"
+This will print:
+
+Code
+ok: [172.20.1.109] => Region for 172.20.1.109 is ca-central-1
+ok: [172.20.1.110] => Region for 172.20.1.110 is us-east-1
+
+
+or read ansible_ssh_user for example:
+
+
+How to use ansible_ssh_user in your YAML playbook
+Just reference it like any other variable:
+
+yaml
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: Show SSH user
+      debug:
+        msg: "SSH user for {{ inventory_hostname }} is {{ ansible_ssh_user }}"
+
+
+Note:
+
+
+Why Ansible requires the name hostvars
+Because Ansible has a fixed, hard‑coded protocol for dynamic inventory:
+
+✔ group → groups and hosts
+✔ vars → group‑level variables
+✔ _meta.hostvars → host‑specific variables
+These names are not optional.
+They are part of the official inventory specification.
+
+Ansible does not try to guess.
+It does not search for alternatives.
+It does not allow custom names.
